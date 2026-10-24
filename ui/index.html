@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenSource2Roblox</title>
+    <link rel="stylesheet" href="goldsource.css">
+</head>
+<body>
+    <div class="gs-window">
+        <!-- Title Bar -->
+        <header class="gs-titlebar">
+            <div class="gs-title">
+                <span class="gs-lambda" id="title-lambda" style="cursor: pointer;" title="Black Mesa Research Facility">λ</span>
+                <span id="window-title-text">OPTIONS: OpenSource2Roblox v2.0 - GoldSource Edition</span>
+            </div>
+            <div class="gs-window-controls">
+                <button class="gs-win-btn" id="btn-minimize" title="Minimize">_</button>
+                <button class="gs-win-btn" id="btn-close" title="Close">X</button>
+            </div>
+        </header>
+
+        <!-- Tab Navigation Bar -->
+        <nav class="gs-tab-bar" id="tab-bar">
+            <div class="gs-tab active" data-tab="tab-maps">Maps</div>
+            <div class="gs-tab" data-tab="tab-models">Models</div>
+            <div class="gs-tab" data-tab="tab-textures">Textures</div>
+            <div class="gs-tab" data-tab="tab-cloud">Roblox Cloud</div>
+            <div class="gs-tab" data-tab="tab-console">Console <span class="badge" id="console-badge" style="display:none;">0</span></div>
+            <div class="gs-tab" data-tab="tab-manual">Guide & Manual</div>
+        </nav>
+
+        <!-- Content Area -->
+        <main class="gs-content">
+            <!-- TAB 1: MAPS -->
+            <section class="gs-tab-panel active" id="tab-maps">
+                <div class="gs-groupbox">
+                    <span class="gs-groupbox-title">Source Game Folder</span>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <label style="width: 130px; font-weight: bold;">Detected Steam Game:</label>
+                        <select class="gs-select" id="detected-games-select" style="flex: 1;">
+                            <option value="">Scanning Steam libraries...</option>
+                        </select>
+                        <button class="gs-btn" id="btn-rescan-steam">Rescan Steam</button>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <label style="width: 130px; font-weight: bold;">Game Directory:</label>
+                        <input type="text" class="gs-input" id="game-dir-input" placeholder="e.g. D:\SteamLibrary\steamapps\common\GarrysMod\garrysmod" style="flex: 1;">
+                        <button class="gs-btn" id="btn-browse-game-dir">Browse...</button>
+                    </div>
+                </div>
+
+                <div class="gs-groupbox" style="flex: 1; display: flex; flex-direction: column;">
+                    <span class="gs-groupbox-title">Available Maps (.bsp)</span>
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+                        <label style="font-weight: bold;">Filter:</label>
+                        <input type="text" class="gs-input" id="map-search-input" placeholder="Type map name to search..." style="flex: 1;">
+                        <span id="map-count-label" style="color: var(--gs-text-dim); font-size: 11px;">0 maps</span>
+                    </div>
+
+                    <div class="gs-listbox">
+                        <table class="gs-table" id="maps-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 45%;">MAP NAME</th>
+                                    <th style="width: 25%;">FILE SIZE</th>
+                                    <th style="width: 30%;">DATE MODIFIED</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maps-table-body">
+                                <tr>
+                                    <td colspan="3" style="text-align: center; color: var(--gs-text-dim); padding: 20px;">
+                                        Select a valid Source game directory above to view installed maps.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+                        <label style="font-weight: bold;">Selected Map:</label>
+                        <input type="text" class="gs-input" id="selected-map-input" placeholder="Enter map name or select from table above" style="flex: 1;">
+                        <button class="gs-btn" id="btn-browse-bsp">Custom .BSP...</button>
+                        <button class="gs-btn gs-btn-inspect" id="btn-inspect-map" title="Inspect models, textures, and entities inside this map">Inspect Map Assets</button>
+                    </div>
+                </div>
+
+                <div class="gs-groupbox" style="margin-bottom: 0;">
+                    <span class="gs-groupbox-title">Conversion Quick Options</span>
+                    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                        <label class="gs-checkbox-label">
+                            <input type="checkbox" class="gs-checkbox" id="chk-upload-textures" checked>
+                            <span>Upload Textures to Roblox Cloud (Server-Side)</span>
+                        </label>
+                        <label class="gs-checkbox-label">
+                            <input type="checkbox" class="gs-checkbox" id="chk-upload-meshes" checked>
+                            <span>Upload Meshes to Roblox Cloud (Server-Side)</span>
+                        </label>
+                        <label class="gs-checkbox-label">
+                            <input type="checkbox" class="gs-checkbox" id="chk-open-studio">
+                            <span>Open in Roblox Studio When Complete</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: MODELS -->
+            <section class="gs-tab-panel" id="tab-models">
+                <div class="gs-groupbox">
+                    <span class="gs-groupbox-title">Source Model (.mdl) Converter</span>
+                    <p style="margin-bottom: 12px; color: var(--gs-text-dim);">
+                        Convert Source 1 prop and character models into Roblox models (<code>.rbxm</code>) with skinned meshes, bones, and textures, as well as Wavefront <code>.obj</code>.
+                    </p>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <label style="width: 120px; font-weight: bold;">Model Path:</label>
+                        <input type="text" class="gs-input" id="model-path-input" placeholder="e.g. models/props_c17/furniturecouch001a.mdl" style="flex: 1;">
+                        <button class="gs-btn" id="btn-browse-model">Browse MDL...</button>
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <label style="width: 120px; font-weight: bold;">Skin Index:</label>
+                        <input type="number" class="gs-input" id="model-skin-input" value="0" min="0" max="32" style="width: 80px;">
+                        <span style="color: var(--gs-text-dim); font-size: 11px;">Default: 0. Many props have alternate skins (0, 1, 2...).</span>
+                    </div>
+                </div>
+                <div class="gs-callout">
+                    <strong>Tip:</strong> Models used inside converted maps are baked automatically. This tab is used to convert individual standalone props or ragdolls.
+                </div>
+            </section>
+
+            <!-- TAB 3: TEXTURES -->
+            <section class="gs-tab-panel" id="tab-textures">
+                <div class="gs-groupbox">
+                    <span class="gs-groupbox-title">Source VTF Texture Extractor</span>
+                    <p style="margin-bottom: 12px; color: var(--gs-text-dim);">
+                        Extract Valve Texture Format (<code>.vtf</code>) files into high-resolution PNGs, normal maps (converted from SSBump), and mipmaps.
+                    </p>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <label style="width: 120px; font-weight: bold;">VTF File Path:</label>
+                        <input type="text" class="gs-input" id="vtf-path-input" placeholder="Absolute file path or game-relative path (e.g. materials/brick/brickwall001.vtf)" style="flex: 1;">
+                        <button class="gs-btn" id="btn-browse-vtf">Browse VTF...</button>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <label style="width: 120px; font-weight: bold;">Custom VMT Dir:</label>
+                        <input type="text" class="gs-input" id="custom-textures-input" placeholder="Optional directory with custom loose textures or materials" style="flex: 1;">
+                        <button class="gs-btn" id="btn-browse-custom-tex">Browse Folder...</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: ROBLOX CLOUD -->
+            <section class="gs-tab-panel" id="tab-cloud">
+                <div class="gs-groupbox">
+                    <span class="gs-groupbox-title">Roblox Open Cloud API Configuration</span>
+                    <p style="margin-bottom: 12px; color: var(--gs-text-dim);">
+                        Connecting your Roblox Open Cloud API Key allows textures and meshes to be uploaded server-side as permanent <code>rbxassetid://</code> assets. Without this, assets only render locally on your machine.
+                    </p>
+
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="width: 130px; font-weight: bold;">Roblox API Key:</label>
+                            <input type="password" class="gs-input" id="api-key-input" placeholder="Paste your Roblox Open Cloud API Key" style="flex: 1;">
+                            <button class="gs-btn" id="btn-toggle-key-visibility">Show</button>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="width: 130px; font-weight: bold;">Creator Type:</label>
+                            <select class="gs-select" id="creator-type-select" style="width: 180px;">
+                                <option value="User">User Account</option>
+                                <option value="Group">Roblox Group</option>
+                            </select>
+                            <span style="color: var(--gs-text-dim); font-size: 11px;">Where uploaded assets will be owned.</span>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="width: 130px; font-weight: bold;">Creator ID:</label>
+                            <input type="text" class="gs-input" id="creator-id-input" placeholder="e.g. 1179063746 (Numeric User or Group ID)" style="width: 280px;">
+                            <button class="gs-btn btn-gold" id="btn-verify-credentials">Test Credentials</button>
+                        </div>
+                    </div>
+
+                    <div id="credentials-status-box" style="margin-top: 12px; display: none;" class="gs-callout">
+                        <span id="credentials-status-text">Checking credentials...</span>
+                    </div>
+                </div>
+
+                <div class="gs-groupbox">
+                    <span class="gs-groupbox-title">Asset Deduplication & Cache</span>
+                    <p style="margin-bottom: 10px; color: var(--gs-text-dim);">
+                        Identical textures and meshes are hashed (MD5) and cached locally so you never waste API quotas or re-upload the same asset twice.
+                    </p>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <span id="cache-stats-label" style="font-weight: bold; color: var(--gs-yellow);">Cached Assets: Loading...</span>
+                        <button class="gs-btn" id="btn-clear-cache">Clear Upload Cache</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: CONSOLE -->
+            <section class="gs-tab-panel" id="tab-console">
+                <div class="gs-console-container">
+                    <div class="gs-console-output" id="console-output">
+                        <div class="gs-log-line gs-log-cmd">] OpenSource2Roblox GoldSource Console initialized. Type 'help' for available commands.</div>
+                    </div>
+                    <div class="gs-console-input-bar">
+                        <span style="font-family: var(--font-mono); font-weight: bold; color: var(--gs-yellow); align-self: center;">]</span>
+                        <input type="text" class="gs-console-input" id="console-input" placeholder="Enter command (e.g. 'status', 'help', 'validate', 'clear')...">
+                        <button class="gs-btn" id="btn-console-submit">Submit</button>
+                        <button class="gs-btn" id="btn-console-clear">Clear</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: GUIDE & MANUAL -->
+            <section class="gs-tab-panel" id="tab-manual">
+                <div class="gs-manual-content">
+                    <h2>λ OpenSource2Roblox Field Manual</h2>
+                    
+                    <h3>1. Quick Start: How to Convert a Map in 3 Steps</h3>
+                    <ol>
+                        <li><strong>Select your Game</strong>: In the <em>Maps</em> tab, pick your installed Steam game (e.g. <code>Garry's Mod</code> or <code>CS:GO</code>) from the dropdown or click <em>Browse...</em>.</li>
+                        <li><strong>Choose a Map</strong>: Click on any map from the list (such as <code>office_summer</code> or <code>gm_construct</code>).</li>
+                        <li><strong>Hit Convert Now</strong>: Click the golden <strong>CONVERT MAP NOW</strong> button at the bottom right. Track the progress in the Console!</li>
+                    </ol>
+
+                    <h3>2. Understanding Local vs Server-Side Assets</h3>
+                    <div class="gs-callout">
+                        <strong>Why did the old version only let you see maps locally?</strong>
+                        <p style="margin-top: 4px;">
+                            Standard Source2Roblox copies assets to your personal PC's Roblox Studio folder and writes <code>rbxasset://source/...</code> URIs. This works on <em>your</em> computer, but when published to Roblox or played on a live server, other players do not have those local files, causing grey or invisible textures.
+                        </p>
+                        <p style="margin-top: 4px;">
+                            With the <strong>Roblox Cloud</strong> hotfix, all textures and meshes are automatically uploaded to Roblox's Open Cloud API as permanent <code>rbxassetid://</code> assets. This makes the map <strong>100% cloud-ready and visible to all players worldwide</strong>.
+                        </p>
+                    </div>
+
+                    <h3>3. Setting Up Your Roblox API Key</h3>
+                    <ol>
+                        <li>Go to the <a href="#" style="color:var(--gs-yellow);" id="link-creator-dashboard">Roblox Creator Dashboard</a> and navigate to <strong>Open Cloud > API Keys</strong>.</li>
+                        <li>Click <strong>Create API Key</strong>.</li>
+                        <li>Under <em>Access Permissions</em>, search for <strong>Asset System</strong> and grant <strong>Write (Asset: Create)</strong> permission.</li>
+                        <li>Under <em>Creator</em>, select whether you are publishing under your personal User Account or a Roblox Group.</li>
+                        <li>Copy the generated API Key and paste it into the <strong>Roblox Cloud</strong> tab in this app.</li>
+                        <li>Enter your numeric <strong>Creator ID</strong> (found in your Roblox Profile URL or Group URL).</li>
+                        <li>Click <strong>Test Credentials</strong> to verify!</li>
+                    </ol>
+
+                    <h3>4. Supported Games & Best Practices</h3>
+                    <ul>
+                        <li><strong>Counter-Strike: Global Offensive (Build 1.38.8.1)</strong>: Tested with <code>de_dust2</code>, <code>de_ancient</code>, <code>de_mirage</code>.</li>
+                        <li><strong>Garry's Mod (x86-64)</strong>: Tested with <code>gm_construct</code>, <code>gm_flatgrass</code>, <code>office_summer</code>, <code>toska</code>.</li>
+                        <li><strong>Counter-Strike: Source & Half-Life 2</strong>: Fully supported.</li>
+                    </ul>
+
+                    <h3>5. Developer Console Commands</h3>
+                    <ul>
+                        <li><code>status</code>: Displays current conversion engine state and target map.</li>
+                        <li><code>validate</code>: Runs an immediate verification check on your Roblox API credentials.</li>
+                        <li><code>cache</code>: Shows statistics on cached deduplicated textures and meshes.</li>
+                        <li><code>clearcache</code>: Purges the local asset upload cache.</li>
+                        <li><code>steam</code>: Rescans local Steam libraries for Source 1 titles.</li>
+                        <li><code>export</code>: Opens the Windows Explorer export directory.</li>
+                        <li><code>clear</code>: Clears the console log window.</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <!-- Status & Action Bar -->
+        <footer class="gs-statusbar">
+            <div class="gs-status-info">
+                <div class="gs-status-text" id="status-text">Status: Ready. Select a game and map to convert.</div>
+                <div class="gs-progress-wrapper">
+                    <div class="gs-progress-bar" id="progress-bar"></div>
+                </div>
+            </div>
+            <div class="gs-actions">
+                <button class="gs-btn btn-gold" id="btn-convert-action">CONVERT MAP NOW</button>
+                <button class="gs-btn" id="btn-open-studio" disabled>OPEN STUDIO PLACE</button>
+                <button class="gs-btn" id="btn-open-output">OPEN EXPORT FOLDER</button>
+                <button class="gs-btn" id="btn-cancel" style="display:none;">CANCEL</button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modal: Map Asset Inspector (GoldSource VGUI Style) -->
+    <div id="modal-map-inspect" class="gs-modal-backdrop hidden">
+        <div class="gs-modal-window">
+            <div class="gs-modal-titlebar">
+                <div class="gs-modal-title">
+                    <span class="gs-lambda">λ</span>
+                    <span id="inspect-modal-title">Map Asset Inspector</span>
+                </div>
+                <button class="gs-win-btn" id="btn-close-inspect-modal" title="Close">X</button>
+            </div>
+
+            <div class="gs-modal-body">
+                <!-- Summary Metrics Ribbon -->
+                <div class="gs-inspect-metrics" id="inspect-metrics-ribbon">
+                    <div class="gs-metric-card">
+                        <span class="gs-metric-title">3D Models (MDL)</span>
+                        <span class="gs-metric-val" id="metric-models">0</span>
+                        <span class="gs-metric-sub" id="metric-prop-instances">0 instances</span>
+                    </div>
+                    <div class="gs-metric-card">
+                        <span class="gs-metric-title">Textures / Materials</span>
+                        <span class="gs-metric-val" id="metric-textures">0</span>
+                        <span class="gs-metric-sub" id="metric-tex-sub">VTF / VMT</span>
+                    </div>
+                    <div class="gs-metric-card">
+                        <span class="gs-metric-title">World Faces</span>
+                        <span class="gs-metric-val" id="metric-faces">0</span>
+                        <span class="gs-metric-sub" id="metric-displacements">0 Displacements</span>
+                    </div>
+                    <div class="gs-metric-card">
+                        <span class="gs-metric-title">Brushes & Solids</span>
+                        <span class="gs-metric-val" id="metric-brushes">0</span>
+                        <span class="gs-metric-sub" id="metric-bsp-version">BSP v20</span>
+                    </div>
+                    <div class="gs-metric-card">
+                        <span class="gs-metric-title">Entities</span>
+                        <span class="gs-metric-val" id="metric-entities">0</span>
+                        <span class="gs-metric-sub" id="metric-skyname">Sky: default</span>
+                    </div>
+                </div>
+
+                <!-- Inspector Sub-Tabs & Filter Bar -->
+                <div class="gs-inspect-toolbar">
+                    <div class="gs-inspect-tabs">
+                        <button class="gs-inspect-tab active" data-subtab="subtab-models">3D Models (<span id="tab-model-count">0</span>)</button>
+                        <button class="gs-inspect-tab" data-subtab="subtab-textures">Textures & Materials (<span id="tab-texture-count">0</span>)</button>
+                        <button class="gs-inspect-tab" data-subtab="subtab-entities">Entities & Misc (<span id="tab-entity-count">0</span>)</button>
+                    </div>
+                    <div class="gs-inspect-filter-box">
+                        <label>Filter:</label>
+                        <input type="text" class="gs-input" id="inspect-filter-input" placeholder="Type to filter assets...">
+                        <button class="gs-btn gs-btn-sm" id="btn-inspect-clear-filter">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Sub-Panels -->
+                <div class="gs-inspect-content-box">
+                    <!-- Loading overlay inside modal -->
+                    <div id="inspect-loading" class="gs-inspect-loading hidden">
+                        <div class="gs-spinner-gold"></div>
+                        <div style="font-size: 13px; font-weight: bold; margin-top: 10px;">Reading BSP Lumps & Parsing Assets...</div>
+                        <div style="color: var(--gs-text-dim); font-size: 11px; margin-top: 4px;">Analyzing static props, entity dictionaries, and texture tables.</div>
+                    </div>
+
+                    <!-- Panel 1: Models Table -->
+                    <div class="gs-inspect-panel active" id="subtab-models">
+                        <div class="gs-listbox inspect-listbox">
+                            <table class="gs-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 12%;">STATUS</th>
+                                        <th style="width: 48%;">MODEL PATH (.MDL)</th>
+                                        <th style="width: 20%;">TYPE</th>
+                                        <th style="width: 10%; text-align: right;">INSTANCES</th>
+                                        <th style="width: 10%; text-align: center;">SKINS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inspect-models-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Panel 2: Textures Table -->
+                    <div class="gs-inspect-panel" id="subtab-textures">
+                        <div class="gs-listbox inspect-listbox">
+                            <table class="gs-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 22%;">CATEGORY</th>
+                                        <th style="width: 78%;">MATERIAL / TEXTURE PATH</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inspect-textures-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Panel 3: Entities Table -->
+                    <div class="gs-inspect-panel" id="subtab-entities">
+                        <div class="gs-listbox inspect-listbox">
+                            <table class="gs-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 70%;">ENTITY CLASS</th>
+                                        <th style="width: 30%; text-align: right;">COUNT</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inspect-entities-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="gs-modal-footer">
+                <div class="gs-modal-footer-info" id="inspect-footer-info">
+                    Select any tab above to inspect models, materials, and entities.
+                </div>
+                <div class="gs-modal-footer-actions">
+                    <button class="gs-btn btn-gold" id="btn-inspect-convert-now">CONVERT THIS MAP NOW</button>
+                    <button class="gs-btn" id="btn-inspect-close">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter</value></resheader>
+
+  <data name="Title_Home"           xml:space="preserve"><value>Home</value></data>
+  <data name="Title_Settings"       xml:space="preserve"><value>Settings</value></data>
+  <data name="Title_About"          xml:space="preserve"><value>About</value></data>
+
+  <data name="Label_Mode"           xml:space="preserve"><value>Conversion Mode</value></data>
+  <data name="Label_Mount"          xml:space="preserve"><value>Source Game Mount</value></data>
+  <data name="Label_SteamSelect"    xml:space="preserve"><value>Discovered Steam game</value></data>
+  <data name="Label_ManualSelect"   xml:space="preserve"><value>Or enter game directory manually (folder containing gameinfo.txt)</value></data>
+
+  <data name="Label_MapDetails"     xml:space="preserve"><value>Map Details</value></data>
+  <data name="Label_MapDesc"        xml:space="preserve"><value>Choose a map name (e.g. d1_trainstation_01) or enter comma-separated names for bulk conversion.</value></data>
+  <data name="Label_ModelDetails"   xml:space="preserve"><value>Model Details</value></data>
+  <data name="Label_ModelDesc"      xml:space="preserve"><value>Enter model path/name (e.g. gman_high) or enter comma-separated paths for bulk conversion.</value></data>
+  <data name="Label_TextureDetails" xml:space="preserve"><value>VTF Texture Details</value></data>
+  <data name="Label_TextureDesc"    xml:space="preserve"><value>Select a VTF file path or enter comma-separated paths for bulk conversion.</value></data>
+
+  <data name="Button_Convert"       xml:space="preserve"><value>Convert Assets</value></data>
+  <data name="Button_Browse"        xml:space="preserve"><value>Browse</value></data>
+
+  <data name="Label_PreviewTitle"   xml:space="preserve"><value>Local Preview Export</value></data>
+  <data name="Label_PreviewDesc"    xml:space="preserve"><value>Open the exported place file directly in Roblox Studio.</value></data>
+  <data name="Button_OpenPreview"   xml:space="preserve"><value>Open in Studio</value></data>
+  <data name="Label_OutputTitle"    xml:space="preserve"><value>Conversion Output</value></data>
+
+  <data name="Label_Language"       xml:space="preserve"><value>Language</value></data>
+  <data name="Label_LanguageDesc"   xml:space="preserve"><value>Use the Windows system language, or choose an override.</value></data>
+  <data name="Label_Theme"          xml:space="preserve"><value>Theme</value></data>
+  <data name="Label_ThemeDesc"      xml:space="preserve"><value>Light, Dark, or follow the system default.</value></data>
+
+  <data name="Label_CustomTextures"    xml:space="preserve"><value>Custom Textures Folder</value></data>
+  <data name="Label_CustomTexturesDesc" xml:space="preserve"><value>Override or extend default game textures during conversion.</value></data>
+  <data name="Label_AssetCaching"      xml:space="preserve"><value>Asset Upload Cache</value></data>
+  <data name="Label_AssetCachingDesc"  xml:space="preserve"><value>Roblox uploads are hashed. Subsequent conversions skip duplicate assets automatically.</value></data>
+
+  <data name="Button_ClearCache"    xml:space="preserve"><value>Clear Cache</value></data>
+  <data name="Button_SaveSettings"  xml:space="preserve"><value>Save Settings</value></data>
+  <data name="Feedback_Saved"       xml:space="preserve"><value>Settings saved.</value></data>
+  <data name="Feedback_CacheCleared" xml:space="preserve"><value>Upload cache cleared.</value></data>
+  <data name="Feedback_CacheEmpty"   xml:space="preserve"><value>No upload cache found.</value></data>
+  <data name="About_TabAbout"         xml:space="preserve"><value>About</value></data>
+  <data name="About_TabContributors"  xml:space="preserve"><value>Contributors</value></data>
+  <data name="About_PageDesc"         xml:space="preserve"><value>Information about this project, its contributors, and licenses.</value></data>
+  <data name="About_WhatTitle"        xml:space="preserve"><value>What is OpenSource2Roblox?</value></data>
+  <data name="About_WhatBody1"        xml:space="preserve"><value>OpenSource2Roblox is a free, open-source desktop application that converts Source Engine game content into Roblox-compatible place files and assets. It reads BSP map files, MDL models, and VTF textures from games like CS:GO, Half-Life 2, Team Fortress 2, and Portal, then exports them directly into Roblox Studio.</value></data>
+  <data name="About_WhatBody2"        xml:space="preserve"><value>Textures are automatically extracted and placed in Roblox Studio's content directory so they load seamlessly when you open the exported place file. Static props, entity lights, displacement terrain, and ropes are all supported.</value></data>
+  <data name="About_FormatsTitle"     xml:space="preserve"><value>Supported Formats</value></data>
+  <data name="About_LinksTitle"       xml:space="preserve"><value>Links</value></data>
+  <data name="About_RepoLink"         xml:space="preserve"><value>Source Repository</value></data>
+  <data name="About_LicenseTitle"     xml:space="preserve"><value>License</value></data>
+  <data name="About_LicenseBody"      xml:space="preserve"><value>This project is released under the MIT License. You are free to use, modify, and distribute it. Source Engine game assets remain the property of Valve Corporation. This tool is not affiliated with or endorsed by Valve or Roblox Corporation.</value></data>
+  <data name="About_Maintainers"      xml:space="preserve"><value>MAINTAINERS</value></data>
+  <data name="About_Contributors"     xml:space="preserve"><value>CONTRIBUTORS</value></data>
+  <data name="Label_RobloxUpload"      xml:space="preserve"><value>Roblox Cloud Upload</value></data>
+  <data name="Label_UploadAssets"      xml:space="preserve"><value>Upload Textures</value></data>
+  <data name="Label_UploadAssetsDesc"  xml:space="preserve"><value>Upload VTF textures directly to Roblox.</value></data>
+  <data name="Label_UploadMeshes"      xml:space="preserve"><value>Upload Meshes</value></data>
+  <data name="Label_UploadMeshesDesc"  xml:space="preserve"><value>Upload .mesh geometry directly to Roblox.</value></data>
+  <data name="Label_ApiKey"            xml:space="preserve"><value>API Key</value></data>
+  <data name="Label_ApiKeyDesc"        xml:space="preserve"><value>Roblox Open Cloud API Key with Asset Write permissions.</value></data>
+  <data name="Label_CreatorType"       xml:space="preserve"><value>Creator Type</value></data>
+  <data name="Label_CreatorTypeDesc"   xml:space="preserve"><value>Identify assets as User-owned or Group-owned.</value></data>
+  <data name="Label_CreatorId"         xml:space="preserve"><value>Creator ID</value></data>
+  <data name="Label_CreatorIdDesc"     xml:space="preserve"><value>Your User ID or Group ID where assets will be uploaded.</value></data>
+</root>

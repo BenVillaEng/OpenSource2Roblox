@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter</value></resheader>
+
+  <data name="Title_Home"           xml:space="preserve"><value>Startseite</value></data>
+  <data name="Title_Settings"       xml:space="preserve"><value>Einstellungen</value></data>
+  <data name="Title_About"          xml:space="preserve"><value>Uber</value></data>
+
+  <data name="Label_Mode"           xml:space="preserve"><value>Konvertierungsmodus</value></data>
+  <data name="Label_Mount"          xml:space="preserve"><value>Spiel-Einbindung</value></data>
+  <data name="Label_SteamSelect"    xml:space="preserve"><value>Erkanntes Steam-Spiel</value></data>
+  <data name="Label_ManualSelect"   xml:space="preserve"><value>Oder Spielordner manuell eingeben (mit gameinfo.txt)</value></data>
+
+  <data name="Label_MapDetails"     xml:space="preserve"><value>Kartendetails</value></data>
+  <data name="Label_MapDesc"        xml:space="preserve"><value>Wählen Sie eine Karte oder geben Sie kommagetrennte Namen für Massenkonvertierung ein.</value></data>
+  <data name="Label_ModelDetails"   xml:space="preserve"><value>Modelldetails</value></data>
+  <data name="Label_ModelDesc"      xml:space="preserve"><value>Modellpfad eingeben oder kommagetrennte Pfade für Massenkonvertierung.</value></data>
+  <data name="Label_TextureDetails" xml:space="preserve"><value>VTF-Texturdetails</value></data>
+  <data name="Label_TextureDesc"    xml:space="preserve"><value>Wählen Sie eine VTF-Datei oder kommagetrennte Pfade.</value></data>
+
+  <data name="Button_Convert"       xml:space="preserve"><value>Konvertieren</value></data>
+  <data name="Button_Browse"        xml:space="preserve"><value>Durchsuchen</value></data>
+
+  <data name="Label_PreviewTitle"   xml:space="preserve"><value>Lokale Vorschau</value></data>
+  <data name="Label_PreviewDesc"    xml:space="preserve"><value>Öffnen Sie die exportierte Datei direkt in Roblox Studio.</value></data>
+  <data name="Button_OpenPreview"   xml:space="preserve"><value>In Studio öffnen</value></data>
+  <data name="Label_OutputTitle"    xml:space="preserve"><value>Konvertierungsausgabe</value></data>
+
+  <data name="Label_Language"       xml:space="preserve"><value>Sprache</value></data>
+  <data name="Label_LanguageDesc"   xml:space="preserve"><value>Systemsprache verwenden oder manuell auswählen.</value></data>
+  <data name="Label_Theme"          xml:space="preserve"><value>Design</value></data>
+  <data name="Label_ThemeDesc"      xml:space="preserve"><value>Hell, Dunkel oder Systemstandard.</value></data>
+
+  <data name="Label_CustomTextures"    xml:space="preserve"><value>Benutzerdefinierter Texturordner</value></data>
+  <data name="Label_CustomTexturesDesc" xml:space="preserve"><value>Standardtexturen während der Konvertierung überschreiben oder erweitern.</value></data>
+  <data name="Label_AssetCaching"      xml:space="preserve"><value>Asset-Upload-Cache</value></data>
+  <data name="Label_AssetCachingDesc"  xml:space="preserve"><value>Roblox-Uploads werden gehasht. Nachfolgende Konvertierungen überspringen Duplikate.</value></data>
+
+  <data name="Button_ClearCache"    xml:space="preserve"><value>Cache leeren</value></data>
+  <data name="Button_SaveSettings"  xml:space="preserve"><value>Speichern</value></data>
+  <data name="Feedback_Saved"       xml:space="preserve"><value>Einstellungen gespeichert.</value></data>
+  <data name="Feedback_CacheCleared" xml:space="preserve"><value>Upload-Cache geleert.</value></data>
+  <data name="About_TabAbout"         xml:space="preserve"><value>Über</value></data>
+  <data name="About_TabContributors"  xml:space="preserve"><value>Mitwirkende</value></data>
+  <data name="About_PageDesc"         xml:space="preserve"><value>Informationen über dieses Projekt, seine Mitwirkenden und Lizenzen.</value></data>
+  <data name="About_WhatTitle"        xml:space="preserve"><value>Was ist OpenSource2Roblox?</value></data>
+  <data name="About_WhatBody1"        xml:space="preserve"><value>OpenSource2Roblox ist eine kostenlose Open-Source-Desktop-Anwendung, die Inhalte der Source-Engine in Roblox-kompatible Ort-Dateien und Assets konvertiert.</value></data>
+  <data name="About_WhatBody2"        xml:space="preserve"><value>Texturen werden automatisch extrahiert und im Inhaltsverzeichnis von Roblox Studio abgelegt, so dass sie beim Öffnen der exportierten Datei nahtlos geladen werden.</value></data>
+  <data name="About_FormatsTitle"     xml:space="preserve"><value>Unterstützte Formate</value></data>
+  <data name="About_LinksTitle"       xml:space="preserve"><value>Links</value></data>
+  <data name="About_RepoLink"         xml:space="preserve"><value>Quellcode-Repository</value></data>
+  <data name="About_LicenseTitle"     xml:space="preserve"><value>Lizenz</value></data>
+  <data name="About_LicenseBody"      xml:space="preserve"><value>Dieses Projekt ist unter der MIT-Lizenz veröffentlicht. Sie können es frei verwenden, ändern und verbreiten. Spielinhalte der Source-Engine bleiben Eigentum der Valve Corporation. Dieses Tool ist nicht mit Valve oder der Roblox Corporation verbunden oder von diesen unterstützt.</value></data>
+  <data name="About_Maintainers"      xml:space="preserve"><value>PROJEKTLEITUNG</value></data>
+  <data name="About_Contributors"     xml:space="preserve"><value>MITWIRKENDE</value></data>
+  <data name="Label_RobloxUpload"      xml:space="preserve"><value>Roblox Cloud Upload</value></data>
+  <data name="Label_UploadAssets"      xml:space="preserve"><value>Texturen hochladen</value></data>
+  <data name="Label_UploadAssetsDesc"  xml:space="preserve"><value>VTF-Texturen direkt zu Roblox hochladen.</value></data>
+  <data name="Label_UploadMeshes"      xml:space="preserve"><value>Meshes hochladen</value></data>
+  <data name="Label_UploadMeshesDesc"  xml:space="preserve"><value>Mesh-Geometrie (.mesh) direkt zu Roblox hochladen.</value></data>
+  <data name="Label_ApiKey"            xml:space="preserve"><value>API-Schlüssel</value></data>
+  <data name="Label_ApiKeyDesc"        xml:space="preserve"><value>Roblox Open Cloud API-Schlüssel mit Berechtigung zum Schreiben von Assets.</value></data>
+  <data name="Label_CreatorType"       xml:space="preserve"><value>Erstellertyp</value></data>
+  <data name="Label_CreatorTypeDesc"   xml:space="preserve"><value>Assets als Benutzer- oder Gruppeneigentum kennzeichnen.</value></data>
+  <data name="Label_CreatorId"         xml:space="preserve"><value>Ersteller-ID</value></data>
+  <data name="Label_CreatorIdDesc"     xml:space="preserve"><value>Ihre Benutzer- oder Gruppen-ID, in die Assets hochgeladen werden.</value></data>
+</root>

@@ -1,0 +1,544 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+
+using ValveKeyValue;
+using Source2Roblox.FileSystem;
+using System.Linq;
+using RobloxFiles.Enums;
+using System.Diagnostics;
+using System.Text;
+
+namespace Source2Roblox.Textures
+{
+    public class ValveMaterial
+    {
+        private static readonly KVSerializer vmtHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
+        private static readonly Dictionary<string, Image> handledFiles = new Dictionary<string, Image>();
+        private readonly GameMount Game;
+
+        /// <summary>Clears the texture cache between conversion runs.</summary>
+        public static void ClearCache()
+        {
+            lock (handledFiles)
+            {
+                handledFiles.Clear();
+            }
+        }
+
+        public string[] DiffusePaths = new string[2];
+        public int DiffuseIndex = 0;
+
+        public string DetailPath;
+        public string BumpPath;
+        public string IrisPath;
+        public string Shader;
+
+        public bool EnvMap = false;
+        public bool NoAlpha = true;
+        public bool Additive = false;
+        public bool SelfIllum = false;
+        public bool SelfShadowedBump = false;
+        public Material Material = Material.Plastic;
+
+        public string DiffusePath => DiffusePaths[DiffuseIndex];
+
+        public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
+        {
+            if (string.IsNullOrEmpty(path) || string.IsNullOrWhiteSpace(rootDir))
+                return null;
+
+            var info = new FileInfo(path);
+
+            string fileName = info.Name;
+            string matDir = path.Replace(fileName, "");
+            rootDir = Path.Combine(rootDir, matDir);
+
+            if (!Directory.Exists(rootDir))
+                Directory.CreateDirectory(rootDir);
+
+            string filePath = Path
+                .Combine(rootDir, fileName)
+                .Replace(".vtf", ".png");
+
+            lock (handledFiles)
+            {
+                if (handledFiles.ContainsKey(filePath))
+                    return handledFiles[filePath];
+            }
+
+            Image bitmap = null;
+            bool foundInCache = false;
+
+            lock (handledFiles)
+            {
+                foundInCache = handledFiles.TryGetValue(path, out bitmap);
+            }
+
+            if (!foundInCache)
+            {
+                if (File.Exists(filePath))
+                {
+                    bool canPreload = true;
+
+                    if (SelfShadowedBump)
+                    {
+                        string sourcePath = filePath.Replace("ssbump", "ssbump-source");
+                        canPreload = File.Exists(sourcePath);
+                    }
+
+                    if (canPreload)
+                    {
+                        Image preload = null;
+                        try
+                        {
+                            var fi = new FileInfo(filePath);
+                            if (fi.Length > 0)
+                            {
+                                using (var stream = File.OpenRead(filePath))
+                                {
+                                    using (var tempImg = Image.FromStream(stream))
+                                    {
+                                        preload = new Bitmap(tempImg);
+                                    }
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            preload = null;
+                            try { File.Delete(filePath); } catch { }
+                        }
+
+                        if (preload != null)
+                        {
+                            lock (handledFiles)
+                            {
+                                if (!handledFiles.ContainsKey(filePath))
+                                    handledFiles.Add(filePath, preload);
+
+                                if (!handledFiles.ContainsKey(path))
+                                    handledFiles.Add(path, preload);
+                            }
+
+                            Console.WriteLine($"\tPreloaded {path}");
+                            return preload;
+                        }
+                    }
+                }
+
+                // TODO: Implement Pakfile Lump.
+                Console.WriteLine($"\tReading {path}");
+
+                if (!GameMount.HasFile(path, Game))
+                {
+                    Console.WriteLine($"\t\tImage not found!");
+                    return null;
+                }
+
+                using (var vtfStream = GameMount.OpenRead(path, Game))
+                using (var vtfReader = new BinaryReader(vtfStream))
+                {
+                    var vtf = new VTFFile(vtfReader, noAlpha ?? NoAlpha);
+                    bitmap = vtf.HighResImage;
+
+                    if (bitmap != null && SelfShadowedBump)
+                    {
+                        string sourcePath = filePath.Replace("ssbump", "ssbump-source");
+
+                        if (sourcePath != filePath)
+                        {
+                            var normalMap = SSBump.ToNormalMap(bitmap);
+                            if (normalMap != null)
+                            {
+                                bitmap.Save(sourcePath);
+                                bitmap = normalMap;
+                            }
+                        }
+                    }
+
+                    if (bitmap != null)
+                    {
+                        lock (handledFiles)
+                        {
+                            if (!handledFiles.ContainsKey(path))
+                                handledFiles.Add(path, bitmap);
+                        }
+                    }
+                }
+            }
+
+            if (bitmap != null)
+            {
+                lock (handledFiles)
+                {
+                    if (!File.Exists(filePath))
+                    {
+                        bitmap.Save(filePath);
+                    }
+
+                    handledFiles[filePath] = bitmap;
+                }
+
+                Console.WriteLine($"\tWrote {filePath}");
+            }
+
+            return bitmap;
+        }
+
+        private static string ReadVtfPath(string path)
+        {
+            if (!path.StartsWith("materials/"))
+                path = $"materials/{path}";
+
+            if (!path.EndsWith(".vtf"))
+                path = $"{path}.vtf";
+
+            return path;
+        }
+
+        private void ReadEntry(KVObject entry)
+        {
+            string key = entry.Name.ToLowerInvariant();
+            var value = entry.Value.ToString();
+
+            switch (key)
+            {
+                case ">=dx90_20b":
+                {
+                    foreach (var child in entry.Children)
+                        ReadEntry(child);
+
+                    break;
+                }
+                case "$basetexture":
+                {
+                    DiffusePaths[0] = ReadVtfPath(value);
+                    break;
+                }
+                case "$basetexture2":
+                {
+                    DiffusePaths[1] = ReadVtfPath(value);
+                    break;
+                }
+                case "$detail":
+                {
+                    DetailPath = ReadVtfPath(value);
+                    break;
+                }
+                case "$detailblendmode":
+                {
+                    if (value == "4")
+                    {
+                        var temp = DetailPath;
+                        DetailPath = DiffusePath;
+                        DiffusePaths[0] = temp;
+                    }
+
+                    break;
+                }
+                case "$bumpmap":
+                case "$normalmap":
+                {
+                    BumpPath = ReadVtfPath(value);
+                    break;
+                }
+                case "$selfillum":
+                {
+                    SelfIllum = (value == "1");
+                    break;
+                }
+                case "$envmap":
+                {
+                    EnvMap = true;
+                    break;
+                }
+                case "$ssbump":
+                {
+                    SelfShadowedBump = true;
+                    break;
+                }
+                case "$alphatest":
+                case "$translucent":
+                {
+                    NoAlpha = (value != "1");
+                    break;
+                }
+                case "$additive":
+                {
+                    Additive = (value == "1");
+                    break;
+                }
+                case "$iris":
+                {
+                    IrisPath = ReadVtfPath(value);
+                    break;
+                }
+                case "$surfaceprop":
+                {
+                    switch (value.ToLowerInvariant())
+                    {
+                        case "brick":
+                        {
+                            Material = Material.Brick;
+                            break;
+                        }
+
+                        case "concrete":
+                        case "concrete_block":
+                        {
+                            Material = Material.Concrete;
+                            break;
+                        }
+
+                        case "baserock":
+                        case "boulder":
+                        case "gravel":
+                        case "rock":
+                        {
+                            Material = Material.Slate;
+                            break;
+                        }
+
+                        case "canister":
+                        case "chain":
+                        case "chainlink":
+                        case "combine_metal":
+                        case "crowbar":
+                        case "floating_metal_barrel":
+                        case "grenade":
+                        case "metal":
+                        case "metal_barrel":
+                        case "metal_bouncy":
+                        case "metal_box":
+                        case "metal_seafloorcar":
+                        case "metalgrate":
+                        case "metalpanel":
+                        case "metalvent":
+                        case "metalvehicle":
+                        case "paintcan":
+                        case "popcan":
+                        case "roller":
+                        case "slipperymetal":
+                        case "solidmetal":
+                        case "strider":
+                        case "weapon":
+                        {
+                            Material = Material.Metal;
+                            break;
+                        }
+
+                        case "wood":
+                        case "wood_box":
+                        case "wood_crate":
+                        case "wood_furniture":
+                        case "wood_lowdensity":
+                        case "wood_plank":
+                        case "wood_panel":
+                        case "wood_solid":
+                        {
+                            Material = Material.Wood;
+                            break;
+                        }
+
+                        case "glass":
+                        case "glassbottle":
+                        case "combine_glass":
+                        {
+                            Material = Material.Glass;
+                            break;
+                        }
+
+                        case "slime":
+                        case "water":
+                        case "wade":
+                        case "puddle":
+                        case "slipperyslime":
+                        {
+                            Material = Material.Water;
+                            break;
+                        }
+
+                        case "ice":
+                        {
+                            Material = Material.Glacier;
+                            break;
+                        }
+
+                        case "snow":
+                        {
+                            Material = Material.Snow;
+                            break;
+                        }
+
+                        case "grass":
+                        {
+                            Material = Material.Grass;
+                            break;
+                        }
+
+                        case "dirt":
+                        case "mud":
+                        {
+                            Material = Material.Mud;
+                            break;
+                        }
+
+                        case "sand":
+                        case "quicksand":
+                        {
+                            Material = Material.Sand;
+                            break;
+                        }
+
+                        case "ceiling_tile":
+                        case "computer":
+                        case "pottery":
+                        case "tile":
+                        {
+                            Material = Material.Marble;
+                            break;
+                        }
+
+                        case "carpet":
+                        case "paper":
+                        case "papercup":
+                        case "cardboard":
+                        case "rubber":
+                        case "rubbertire":
+                        case "slidingrubbertire":
+                        case "slidingrubbertire_front":
+                        case "slidingrubbertire_rear":
+                        case "jeeptire":
+                        case "brakingrubbertire":
+                        {
+                            Material = Material.Fabric;
+                            break;
+                        }
+
+                        case "asphalt":
+                        {
+                            Material = Material.Asphalt;
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+            }   
+        }
+
+        private void ParseVMT(string path)
+        {
+            path = Program.CleanPath(path);
+
+            if (!path.StartsWith("materials"))
+                path = "materials/" + path;
+
+            if (!path.EndsWith(".vmt"))
+                path += ".vmt";
+
+            if (!GameMount.HasFile(path, Game))
+            {
+                Console.WriteLine($"Failed to bind ValveMaterial for: {path}");
+                return;
+            }
+
+            using (var stream = GameMount.OpenRead(path, Game))
+            {
+                while (true)
+                {
+                    if (stream.ReadByte() != 0xFF)
+                    {
+                        stream.Position--;
+                        break;
+                    }
+                }
+
+                string newContent = "";
+
+                using (var streamReader = new StreamReader(stream))
+                {
+                    string data = streamReader.ReadToEnd();
+
+                    using (var reader = new StringReader(data))
+                    {
+                        string line;
+
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            int numQuotes = line.Count(ch => ch == '"');
+
+                            if (numQuotes % 2 == 0)
+                            {
+                                newContent += line + "\r\n";
+                                continue;
+                            }
+
+                            Program.LogError($"Ignoring garbage VMT field: '{line}' in {path}");
+                        }
+                    }
+                }
+
+                byte[] buffer = Encoding.UTF8.GetBytes(newContent);
+
+                using (var memStream = new MemoryStream(buffer))
+                {
+                    var vmt = vmtHelper.Deserialize(memStream);
+                    string shaderName = vmt.Name.ToLowerInvariant();
+
+                    if (Shader == null)
+                        Shader = shaderName;
+
+                    if (shaderName == "lightmappedgeneric")
+                        NoAlpha = true;
+
+                    var keys = vmt.ToList();
+
+                    if (shaderName == "patch")
+                    {
+                        var includeEntry = keys.FirstOrDefault(k => k.Name.ToLowerInvariant() == "include");
+                        if (includeEntry != null)
+                        {
+                            string includePath = includeEntry.Value.ToString();
+                            ParseVMT(includePath);
+                        }
+
+                        var insertEntry = keys.FirstOrDefault(k => k.Name.ToLowerInvariant() == "insert");
+                        if (insertEntry != null)
+                        {
+                            foreach (var child in insertEntry.Children)
+                                ReadEntry(child);
+                        }
+
+                        var replaceEntry = keys.FirstOrDefault(k => k.Name.ToLowerInvariant() == "replace");
+                        if (replaceEntry != null)
+                        {
+                            foreach (var child in replaceEntry.Children)
+                                ReadEntry(child);
+                        }
+
+                        foreach (var key in keys)
+                        {
+                            string kName = key.Name.ToLowerInvariant();
+                            if (kName != "include" && kName != "insert" && kName != "replace")
+                                ReadEntry(key);
+                        }
+                    }
+                    else
+                    {
+                        keys.ForEach(ReadEntry);
+                    }
+                }
+            }
+        }
+
+        public ValveMaterial(string path, GameMount game = null)
+        {
+            Game = game;
+            ParseVMT(path);
+        }
+    }
+
+}

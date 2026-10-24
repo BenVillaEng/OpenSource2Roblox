@@ -1,0 +1,192 @@
+<Page x:Class="Source2Roblox.Views.AboutView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.expression/blend/2008"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      mc:Ignorable="d"
+      d:DesignHeight="650" d:DesignWidth="860"
+      Title="AboutView"
+      Background="Transparent">
+
+    <Grid Margin="28,20,28,28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Name="AboutTitleLabel"
+                       Text="About"
+                       FontSize="28"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,6" />
+            <TextBlock Name="AboutDescLabel"
+                       Text="Information about this project, its contributors, and licenses."
+                       FontSize="13"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Margin="0,0,0,16" />
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ui:Button Name="TabAboutButton"
+                           Content="About"
+                           Grid.Column="0"
+                           Margin="0,0,4,0"
+                           Click="TabButton_Click"
+                           Tag="about"
+                           Appearance="Primary"
+                           HorizontalAlignment="Stretch"
+                           Height="32"
+                           FontSize="13" />
+                <ui:Button Name="TabContributorsButton"
+                           Content="Contributors"
+                           Grid.Column="1"
+                           Margin="4,0,0,0"
+                           Click="TabButton_Click"
+                           Tag="contributors"
+                           Appearance="Secondary"
+                           HorizontalAlignment="Stretch"
+                           Height="32"
+                           FontSize="13" />
+            </Grid>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Background="Transparent">
+            <Grid Background="Transparent">
+
+            <StackPanel Name="AboutPanel" Background="Transparent">
+
+                <ui:Card Padding="20" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Name="WhatTitleLabel"
+                                   Text="What is OpenSource2Roblox?"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,12" />
+                        <TextBlock Name="WhatBody1Label"
+                                   TextWrapping="Wrap" FontSize="13" LineHeight="22"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+OpenSource2Roblox is a free, open-source desktop application that converts Source Engine game content into Roblox-compatible place files and assets. It reads BSP map files, MDL models, and VTF textures from games like CS:GO, Half-Life 2, Team Fortress 2, and Portal, then exports them directly into Roblox Studio.
+                        </TextBlock>
+                        <Separator Margin="0,14,0,14" Opacity="0.3" />
+                        <TextBlock Name="WhatBody2Label"
+                                   TextWrapping="Wrap" FontSize="13" LineHeight="22"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+Textures are automatically extracted and placed in Roblox Studio's content directory so they load seamlessly when you open the exported place file. Static props, entity lights, displacement terrain, and ropes are all supported.
+                        </TextBlock>
+                    </StackPanel>
+                </ui:Card>
+
+                <ui:Card Padding="20" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Name="FormatsTitleLabel"
+                                   Text="Supported Formats"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,14" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="INPUT"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,0,0,8" />
+                                <TextBlock Text=".bsp  Source Engine maps"   FontSize="12" Margin="0,0,0,5" />
+                                <TextBlock Text=".mdl  Source Engine models" FontSize="12" Margin="0,0,0,5" />
+                                <TextBlock Text=".vtf  Valve texture format" FontSize="12" Margin="0,0,0,5" />
+                                <TextBlock Text=".vmt  Valve material type"  FontSize="12" Margin="0,0,0,5" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="OUTPUT"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,0,0,8" />
+                                <TextBlock Text=".rbxl  Roblox place file"  FontSize="12" Margin="0,0,0,5" />
+                                <TextBlock Text=".rbxm  Roblox model file"  FontSize="12" Margin="0,0,0,5" />
+                                <TextBlock Text=".mesh  Roblox mesh file"   FontSize="12" Margin="0,0,0,5" />
+                                <TextBlock Text=".png   Extracted textures"  FontSize="12" Margin="0,0,0,5" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </ui:Card>
+
+                <ui:Card Padding="20">
+                    <StackPanel>
+                        <TextBlock Name="LinksTitleLabel"
+                                   Text="Links"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,12" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                            <ui:HyperlinkButton Name="RepoLinkButton"
+                                                Content="Source Repository"
+                                                NavigateUri="https://github.com/mustafaalios/OpenSource2Roblox"
+                                                Icon="BranchFork24" />
+                        </StackPanel>
+                        <Separator Margin="0,0,0,14" Opacity="0.3" />
+                        <TextBlock Name="LicenseTitleLabel"
+                                   Text="License"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,12" />
+                        <TextBlock Name="LicenseBodyLabel"
+                                   TextWrapping="Wrap" FontSize="13" LineHeight="22"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+This project is released under the MIT License. You are free to use, modify, and distribute it. Source Engine game assets remain the property of Valve Corporation. This tool is not affiliated with or endorsed by Valve or Roblox Corporation.
+                        </TextBlock>
+                    </StackPanel>
+                </ui:Card>
+
+            </StackPanel>
+
+            <StackPanel Name="ContributorsPanel" Background="Transparent" Visibility="Collapsed">
+
+                <ui:Card Padding="20" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Name="MaintainersLabel"
+                                   Text="MAINTAINERS"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,0,0,14" />
+                        <StackPanel Name="MaintainersPanel" />
+                    </StackPanel>
+                </ui:Card>
+
+                <ui:Card Padding="20">
+                    <StackPanel>
+                        <TextBlock Name="ContributorsLabel"
+                                   Text="CONTRIBUTORS"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,0,0,14" />
+                        <StackPanel Name="ContributorRowsPanel" />
+                    </StackPanel>
+                </ui:Card>
+
+            </StackPanel>
+
+            </Grid>
+        </ScrollViewer>
+
+        <TextBlock Name="VersionLabel"
+                   Grid.Row="2"
+                   Text="v1.0.0"
+                   FontSize="11"
+                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                   HorizontalAlignment="Right"
+                   Margin="0,10,0,0" />
+
+    </Grid>
+</Page>

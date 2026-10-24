@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter</value></resheader>
+
+  <data name="Title_Home"           xml:space="preserve"><value>Inicio</value></data>
+  <data name="Title_Settings"       xml:space="preserve"><value>Configuracion</value></data>
+  <data name="Title_About"          xml:space="preserve"><value>Acerca de</value></data>
+
+  <data name="Label_Mode"           xml:space="preserve"><value>Modo de Conversion</value></data>
+  <data name="Label_Mount"          xml:space="preserve"><value>Montaje del Juego</value></data>
+  <data name="Label_SteamSelect"    xml:space="preserve"><value>Juego de Steam detectado</value></data>
+  <data name="Label_ManualSelect"   xml:space="preserve"><value>O ingrese el directorio del juego manualmente (carpeta con gameinfo.txt)</value></data>
+
+  <data name="Label_MapDetails"     xml:space="preserve"><value>Detalles del Mapa</value></data>
+  <data name="Label_MapDesc"        xml:space="preserve"><value>Elija un nombre de mapa o ingrese nombres separados por comas para conversion masiva.</value></data>
+  <data name="Label_ModelDetails"   xml:space="preserve"><value>Detalles del Modelo</value></data>
+  <data name="Label_ModelDesc"      xml:space="preserve"><value>Ingrese ruta del modelo o nombres separados por comas para conversion masiva.</value></data>
+  <data name="Label_TextureDetails" xml:space="preserve"><value>Detalles de Textura VTF</value></data>
+  <data name="Label_TextureDesc"    xml:space="preserve"><value>Seleccione un archivo VTF o rutas separadas por comas para conversion masiva.</value></data>
+
+  <data name="Button_Convert"       xml:space="preserve"><value>Convertir</value></data>
+  <data name="Button_Browse"        xml:space="preserve"><value>Examinar</value></data>
+
+  <data name="Label_PreviewTitle"   xml:space="preserve"><value>Vista Previa Local</value></data>
+  <data name="Label_PreviewDesc"    xml:space="preserve"><value>Abra el archivo de lugar exportado directamente en Roblox Studio.</value></data>
+  <data name="Button_OpenPreview"   xml:space="preserve"><value>Abrir en Studio</value></data>
+  <data name="Label_OutputTitle"    xml:space="preserve"><value>Resultado de Conversion</value></data>
+
+  <data name="Label_Language"       xml:space="preserve"><value>Idioma</value></data>
+  <data name="Label_LanguageDesc"   xml:space="preserve"><value>Usar el idioma del sistema o elegir uno manualmente.</value></data>
+  <data name="Label_Theme"          xml:space="preserve"><value>Tema</value></data>
+  <data name="Label_ThemeDesc"      xml:space="preserve"><value>Claro, Oscuro o el tema predeterminado del sistema.</value></data>
+
+  <data name="Label_CustomTextures"    xml:space="preserve"><value>Carpeta de Texturas Personalizadas</value></data>
+  <data name="Label_CustomTexturesDesc" xml:space="preserve"><value>Anule o extienda las texturas del juego durante la conversion.</value></data>
+  <data name="Label_AssetCaching"      xml:space="preserve"><value>Cache de Activos</value></data>
+  <data name="Label_AssetCachingDesc"  xml:space="preserve"><value>Las cargas de Roblox se procesan con hash. Las conversiones futuras omiten duplicados.</value></data>
+
+  <data name="Button_ClearCache"    xml:space="preserve"><value>Limpiar Cache</value></data>
+  <data name="Button_SaveSettings"  xml:space="preserve"><value>Guardar</value></data>
+  <data name="Feedback_Saved"       xml:space="preserve"><value>Configuracion guardada.</value></data>
+  <data name="Feedback_CacheCleared" xml:space="preserve"><value>Cache de carga eliminado.</value></data>
+  <data name="Feedback_CacheEmpty"   xml:space="preserve"><value>No se encontro cache de carga.</value></data>
+  <data name="About_TabAbout"         xml:space="preserve"><value>Acerca de</value></data>
+  <data name="About_TabContributors"  xml:space="preserve"><value>Colaboradores</value></data>
+  <data name="About_PageDesc"         xml:space="preserve"><value>Informacion sobre este proyecto, sus colaboradores y licencias.</value></data>
+  <data name="About_WhatTitle"        xml:space="preserve"><value>Que es OpenSource2Roblox?</value></data>
+  <data name="About_WhatBody1"        xml:space="preserve"><value>OpenSource2Roblox es una aplicacion de escritorio gratuita y de codigo abierto que convierte contenido del motor Source en archivos y activos compatibles con Roblox.</value></data>
+  <data name="About_WhatBody2"        xml:space="preserve"><value>Las texturas se extraen automaticamente y se colocan en el directorio de contenido de Roblox Studio para que se carguen sin problemas al abrir el archivo exportado.</value></data>
+  <data name="About_FormatsTitle"     xml:space="preserve"><value>Formatos soportados</value></data>
+  <data name="About_LinksTitle"       xml:space="preserve"><value>Enlaces</value></data>
+  <data name="About_RepoLink"         xml:space="preserve"><value>Repositorio fuente</value></data>
+  <data name="About_LicenseTitle"     xml:space="preserve"><value>Licencia</value></data>
+  <data name="About_LicenseBody"      xml:space="preserve"><value>Este proyecto se publica bajo la Licencia MIT. Puede usarlo, modificarlo y distribuirlo libremente. Los activos del juego Source Engine son propiedad de Valve Corporation. Esta herramienta no esta afiliada ni respaldada por Valve o Roblox Corporation.</value></data>
+  <data name="About_Maintainers"      xml:space="preserve"><value>MANTENEDORES</value></data>
+  <data name="About_Contributors"     xml:space="preserve"><value>COLABORADORES</value></data>
+  <data name="Label_RobloxUpload"      xml:space="preserve"><value>Carga en la nube de Roblox</value></data>
+  <data name="Label_UploadAssets"      xml:space="preserve"><value>Cargar texturas</value></data>
+  <data name="Label_UploadAssetsDesc"  xml:space="preserve"><value>Cargar texturas VTF directamente a Roblox.</value></data>
+  <data name="Label_UploadMeshes"      xml:space="preserve"><value>Cargar mallas</value></data>
+  <data name="Label_UploadMeshesDesc"  xml:space="preserve"><value>Cargar geometría de malla directamente a Roblox.</value></data>
+  <data name="Label_ApiKey"            xml:space="preserve"><value>Clave API</value></data>
+  <data name="Label_ApiKeyDesc"        xml:space="preserve"><value>Clave API de Roblox Open Cloud con permisos de escritura de activos.</value></data>
+  <data name="Label_CreatorType"       xml:space="preserve"><value>Tipo de creador</value></data>
+  <data name="Label_CreatorTypeDesc"   xml:space="preserve"><value>Identificar activos como propiedad de usuario o de grupo.</value></data>
+  <data name="Label_CreatorId"         xml:space="preserve"><value>ID del creador</value></data>
+  <data name="Label_CreatorIdDesc"     xml:space="preserve"><value>Su ID de usuario o de grupo donde se cargarán los activos.</value></data>
+</root>

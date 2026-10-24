@@ -1,0 +1,21 @@
+# Build outputs
+bin/
+obj/
+dist/
+release/
+*.log
+*.zip
+
+# Node dependencies
+ui/node_modules/
+node_modules/
+
+# Local configuration & caches
+*.user
+*.suo
+upload_cache.json
+settings.json
+
+# OS files
+.DS_Store
+Thumbs.db

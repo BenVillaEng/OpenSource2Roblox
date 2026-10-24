@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWpf>true</UseWpf>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Source2Roblox</RootNamespace>
+    <AssemblyName>OpenSource2Roblox</AssemblyName>
+    <StartupObject>Source2Roblox.Program</StartupObject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <ApplicationIcon>assets\lambda.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="SevenZip" Version="19.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+    <PackageReference Include="wpf-ui" Version="3.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roblox-File-Format\RobloxFileFormat.csproj" />
+    <ProjectReference Include="..\ValveKeyValue\ValveKeyValue\ValveKeyValue\ValveKeyValue.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="icon.png" />
+  </ItemGroup>
+
+</Project>
