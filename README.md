@@ -1,4 +1,4 @@
-# OpenSource2Roblox - GoldSource Edition v2.0
+# OpenSource2Roblox
 
 **OpenSource2Roblox** is a high-performance reverse-engineering tool for converting Valve Source 1 engine assets (`.bsp` maps, `.mdl` models, `.vtf` textures, `.vmt` materials) into native Roblox Studio formats (`.rbxl`, `.rbxm`, `.mesh`, and PBR `SurfaceAppearance`).
 
