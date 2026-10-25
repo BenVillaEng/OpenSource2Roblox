@@ -48,20 +48,6 @@ To make textures and meshes visible to all players server-side:
 
 ---
 
-## Bug Fixes & Improvements in this Release
-
-1. **Fixed Workshop Addon World Assembly Crash (`Parameter 'key'`)**: Resolved an `ArgumentNullException: Value cannot be null. (Parameter 'key')` that aborted map conversion during `Assembling world...` when props had null models or empty keys, ensuring the `.rbxl` place file is generated and saved reliably.
-2. **Automatic Cross-Game Dependency Mounting**: Workshop and community maps depending on **Counter-Strike: Source (CS:S)**, **Team Fortress 2 (TF2)**, **Half-Life 2 (HL2)**, **Episode 1/2**, **Portal**, and **Left 4 Dead 2** are now automatically detected and mounted across all Steam libraries and `mount.cfg`, resolving missing models and textures.
-3. **Workshop Addons & Navigation Mesh (.nav) Support**:
-   * Scans Garry's Mod `addons/`, `download/maps/`, and Steam workshop directories (`workshop/content/4000/`).
-   * Automatically pairs `.nav` navigation mesh files with their corresponding `.bsp` map.
-   * Note: Roblox Studio automatically computes native 3D navigation meshes via `PathfindingService`.
-4. **Accurate Error Reporting**: Prevented false positive `CONVERSION FINISHED SUCCESSFULLY [OK]` messages when map conversions encounter errors.
-5. **Fixed Mesh Cloud Upload Dependency**: Meshes can be uploaded to Roblox Cloud independently of textures.
-6. **Roblox Gateway Credential Validator**: Added `-verifyCredentials` CLI verification providing instant feedback on key validity.
-
----
-
 ## Compiling from Source
 
 ### Prerequisites
