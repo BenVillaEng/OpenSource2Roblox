@@ -34,13 +34,15 @@ This release features a classic **GoldSource VGUI (Counter-Strike 1.6 / Half-Lif
 
 ---
 
-## Roblox Cloud Credentials Setup
+## Roblox Cloud Credentials Setup (Exact Order)
 
 To make textures and meshes visible to all players server-side:
-1. Go to the [Roblox Creator Dashboard](https://create.roblox.com/dashboard/credentials) > **Open Cloud** > **API Keys**.
-2. Click **Create API Key**.
-3. Under **Access Permissions**, add **Asset System** and enable **Write (Asset: Create)**.
-4. Select the **Creator** (User Account or Group).
+1. Go to the [Roblox Creator Dashboard](https://create.roblox.com/dashboard/credentials).
+2. Navigate to **API Keys** and click **Create API Key**.
+3. Under **Access Permissions**, add and configure both of the following:
+   * **Assets**: enable **Write** (Asset: Create) and **Read**
+   * **Assets Permission**: enable **Write** and **Read**
+4. Under **Creator**, select whether you are publishing under your personal User Account or a Roblox Group.
 5. Copy the generated API Key and your numeric **Creator ID** into the **Roblox Cloud** tab in the app.
 6. Click **Test Credentials** to verify authorization.
 
@@ -48,10 +50,15 @@ To make textures and meshes visible to all players server-side:
 
 ## Bug Fixes & Improvements in this Release
 
-1. **Fixed Mesh Cloud Upload Dependency**: Fixed a critical logic check in `RobloxAssetResolver.cs` where `UploadMeshes` would be skipped if `UploadAssets` was disabled. Meshes can now be uploaded to Roblox Cloud independently.
-2. **Fixed Asset Filter Overlap**: Ensured texture exclusion rules (`Program.ExcludedTextures`) only apply to image textures and no longer collide with mesh buffers.
-3. **Roblox Gateway Credential Validator**: Added `-verifyCredentials` CLI argument to `Program.cs` and `RobloxAssetResolver.VerifyCredentialsAsync()`, providing instant feedback on key validity without running full maps.
-4. **Standalone GoldSource Desktop GUI**: Built an offline-ready Electron app featuring zero server requirements, complete Steam VDF parsing, and real-time IPC event streaming.
+1. **Fixed Workshop Addon World Assembly Crash (`Parameter 'key'`)**: Resolved an `ArgumentNullException: Value cannot be null. (Parameter 'key')` that aborted map conversion during `Assembling world...` when props had null models or empty keys, ensuring the `.rbxl` place file is generated and saved reliably.
+2. **Automatic Cross-Game Dependency Mounting**: Workshop and community maps depending on **Counter-Strike: Source (CS:S)**, **Team Fortress 2 (TF2)**, **Half-Life 2 (HL2)**, **Episode 1/2**, **Portal**, and **Left 4 Dead 2** are now automatically detected and mounted across all Steam libraries and `mount.cfg`, resolving missing models and textures.
+3. **Workshop Addons & Navigation Mesh (.nav) Support**:
+   * Scans Garry's Mod `addons/`, `download/maps/`, and Steam workshop directories (`workshop/content/4000/`).
+   * Automatically pairs `.nav` navigation mesh files with their corresponding `.bsp` map.
+   * Note: Roblox Studio automatically computes native 3D navigation meshes via `PathfindingService`.
+4. **Accurate Error Reporting**: Prevented false positive `CONVERSION FINISHED SUCCESSFULLY [OK]` messages when map conversions encounter errors.
+5. **Fixed Mesh Cloud Upload Dependency**: Meshes can be uploaded to Roblox Cloud independently of textures.
+6. **Roblox Gateway Credential Validator**: Added `-verifyCredentials` CLI verification providing instant feedback on key validity.
 
 ---
 

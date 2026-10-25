@@ -304,6 +304,7 @@ namespace Source2Roblox
             }
 
             var tasks = new List<Task>();
+            bool hasErrors = false;
 
             if (vtfName != null)
             {
@@ -319,6 +320,7 @@ namespace Source2Roblox
                         }
                         catch (Exception e)
                         {
+                            hasErrors = true;
                             Emit("error", $"VTF conversion failed for {singleVtfName}: {e.Message}", new { detail = e.ToString() });
                         }
                     }));
@@ -339,6 +341,7 @@ namespace Source2Roblox
                         }
                         catch (Exception e)
                         {
+                            hasErrors = true;
                             Emit("error", $"Model conversion failed for {singleModel}: {e.Message}", new { detail = e.ToString() });
                         }
                     }));
@@ -359,6 +362,7 @@ namespace Source2Roblox
                         }
                         catch (Exception e)
                         {
+                            hasErrors = true;
                             Emit("error", $"Map conversion failed for {singleMap}: {e.Message}", new { detail = e.ToString() });
                         }
                     }));
@@ -368,6 +372,12 @@ namespace Source2Roblox
             if (tasks.Count > 0)
             {
                 Task.WhenAll(tasks).GetAwaiter().GetResult();
+            }
+
+            if (hasErrors)
+            {
+                Emit("error", "One or more conversion tasks encountered errors. Place file was not generated.");
+                return 1;
             }
 
             Emit("done", "Conversion finished.");
@@ -442,14 +452,109 @@ namespace Source2Roblox
             Emit("output", "Model export complete.", new { path = robloxOutputDir, objPath = exportDir });
         }
 
+        public static string ResolveMapPath(string mapInput)
+        {
+            if (string.IsNullOrWhiteSpace(mapInput))
+                return mapInput;
+
+            string trimmed = mapInput.Trim();
+
+            // Handle .nav files: resolve to corresponding .bsp
+            if (trimmed.EndsWith(".nav", StringComparison.OrdinalIgnoreCase))
+            {
+                string bspCandidate = trimmed.Substring(0, trimmed.Length - 4) + ".bsp";
+                if (File.Exists(bspCandidate))
+                    return bspCandidate;
+                trimmed = trimmed.Substring(0, trimmed.Length - 4);
+            }
+            else if (trimmed.EndsWith(".bsp", StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(trimmed))
+                    return trimmed;
+                trimmed = trimmed.Substring(0, trimmed.Length - 4);
+            }
+
+            if (File.Exists(trimmed))
+                return trimmed;
+
+            if (File.Exists(trimmed + ".bsp"))
+                return trimmed + ".bsp";
+
+            string baseMapName = Path.GetFileName(trimmed);
+
+            if (GameMount != null && !string.IsNullOrWhiteSpace(GameMount.GameDir))
+            {
+                // Check maps/
+                string directMap = Path.Combine(GameMount.GameDir, "maps", $"{baseMapName}.bsp");
+                if (File.Exists(directMap))
+                    return directMap;
+
+                // Check download/maps/
+                string downloadMap = Path.Combine(GameMount.GameDir, "download", "maps", $"{baseMapName}.bsp");
+                if (File.Exists(downloadMap))
+                    return downloadMap;
+
+                // Check root
+                string rootMap = Path.Combine(GameMount.GameDir, $"{baseMapName}.bsp");
+                if (File.Exists(rootMap))
+                    return rootMap;
+
+                // Check addons/*/maps and direct addon maps
+                string addonsDir = Path.Combine(GameMount.GameDir, "addons");
+                if (Directory.Exists(addonsDir))
+                {
+                    try
+                    {
+                        foreach (var addonDir in Directory.GetDirectories(addonsDir))
+                        {
+                            string addonMap = Path.Combine(addonDir, "maps", $"{baseMapName}.bsp");
+                            if (File.Exists(addonMap))
+                                return addonMap;
+
+                            string directAddonMap = Path.Combine(addonDir, $"{baseMapName}.bsp");
+                            if (File.Exists(directAddonMap))
+                                return directAddonMap;
+                        }
+                    }
+                    catch {}
+                }
+
+                // Check Steam workshop content folder (4000 for Garry's Mod)
+                string workshopDir = Path.GetFullPath(Path.Combine(GameMount.GameDir, "..", "..", "workshop", "content", "4000"));
+                if (Directory.Exists(workshopDir))
+                {
+                    try
+                    {
+                        foreach (var wsItem in Directory.GetDirectories(workshopDir))
+                        {
+                            string wsMap = Path.Combine(wsItem, "maps", $"{baseMapName}.bsp");
+                            if (File.Exists(wsMap))
+                                return wsMap;
+
+                            string wsDirectMap = Path.Combine(wsItem, $"{baseMapName}.bsp");
+                            if (File.Exists(wsDirectMap))
+                                return wsDirectMap;
+                        }
+                    }
+                    catch {}
+                }
+            }
+
+            return $"maps/{baseMapName}.bsp";
+        }
+
         private static void ConvertMap(string mapName, string outputRoot)
         {
-            string exportDir = Path.Combine(outputRoot, GameMount.GameName, "maps");
+            string gameName = GameMount?.GameName ?? "SourceGame";
+            string exportDir = Path.Combine(outputRoot, gameName, "maps");
             Directory.CreateDirectory(exportDir);
 
-            Emit("progress", $"Processing map {mapName}.", new { output = exportDir });
-            var bsp = new BSPFile($"maps/{mapName}.bsp");
-            MeshBuilder.BakeBSP_RBXL(bsp, null, outputRoot);
+            string bspPath = ResolveMapPath(mapName);
+            string cleanName = Path.GetFileNameWithoutExtension(bspPath);
+
+            Emit("progress", $"Processing map {cleanName} from {bspPath}.", new { output = exportDir });
+            var bsp = new BSPFile(bspPath, GameMount);
+            MeshBuilder.BakeBSP_RBXL(bsp, GameMount, outputRoot);
             Emit("output", "Map export complete.", new { path = exportDir });
         }
 
@@ -466,8 +571,9 @@ namespace Source2Roblox
         {
             try
             {
-                string bspPath = Path.IsPathRooted(mapName) ? mapName : $"maps/{mapName}.bsp";
-                Emit("progress", $"Inspecting assets inside map {mapName}...");
+                string bspPath = ResolveMapPath(mapName);
+                string cleanName = Path.GetFileNameWithoutExtension(bspPath);
+                Emit("progress", $"Inspecting assets inside map {cleanName} from {bspPath}...");
                 var bsp = new BSPFile(bspPath, GameMount);
 
                 var modelMap = new Dictionary<string, ModelSummary>(StringComparer.OrdinalIgnoreCase);

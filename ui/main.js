@@ -172,47 +172,110 @@ ipcMain.handle('scan-steam-games', async () => {
     return discovered;
 });
 
-// Scan Maps in Game Folder
+// Scan Maps in Game Folder (Stock maps, downloads, workshop addons)
 ipcMain.handle('scan-maps', async (event, gameDir) => {
     if (!gameDir || !fs.existsSync(gameDir)) return [];
 
-    const mapsDir = path.join(gameDir, 'maps');
-    if (!fs.existsSync(mapsDir)) return [];
+    const mapList = [];
+    const seenNames = new Set();
 
-    try {
-        const files = fs.readdirSync(mapsDir);
-        const mapList = [];
+    function addMapFile(fullPath, category) {
+        try {
+            if (!fs.existsSync(fullPath)) return;
+            const fileName = path.basename(fullPath);
+            const baseName = fileName.replace(/\.bsp$/i, '');
+            if (seenNames.has(baseName.toLowerCase())) return;
 
-        for (const file of files) {
-            if (file.toLowerCase().endsWith('.bsp')) {
-                const fullPath = path.join(mapsDir, file);
-                try {
-                    const stats = fs.statSync(fullPath);
-                    mapList.push({
-                        name: file.replace(/\.bsp$/i, ''),
-                        fileName: file,
-                        sizeBytes: stats.size,
-                        sizeFormatted: (stats.size / (1024 * 1024)).toFixed(1) + ' MB',
-                        modified: stats.mtime.toLocaleDateString()
-                    });
-                } catch (e) {
-                    mapList.push({
-                        name: file.replace(/\.bsp$/i, ''),
-                        fileName: file,
-                        sizeBytes: 0,
-                        sizeFormatted: 'Unknown',
-                        modified: ''
-                    });
+            const stats = fs.statSync(fullPath);
+            const navPath = fullPath.replace(/\.bsp$/i, '.nav');
+            const hasNav = fs.existsSync(navPath);
+
+            seenNames.add(baseName.toLowerCase());
+            mapList.push({
+                name: baseName,
+                fileName,
+                fullPath,
+                category,
+                hasNav,
+                sizeBytes: stats.size,
+                sizeFormatted: (stats.size / (1024 * 1024)).toFixed(1) + ' MB',
+                modified: stats.mtime.toLocaleDateString()
+            });
+        } catch (e) {}
+    }
+
+    // 1. Stock maps in gameDir/maps
+    const stockMapsDir = path.join(gameDir, 'maps');
+    if (fs.existsSync(stockMapsDir)) {
+        try {
+            const files = fs.readdirSync(stockMapsDir);
+            for (const file of files) {
+                if (file.toLowerCase().endsWith('.bsp')) {
+                    addMapFile(path.join(stockMapsDir, file), 'Stock Game');
                 }
             }
-        }
-
-        mapList.sort((a, b) => a.name.localeCompare(b.name));
-        return mapList;
-    } catch (err) {
-        console.error('Error scanning maps:', err);
-        return [];
+        } catch (e) {}
     }
+
+    // 2. Downloaded multiplayer maps in gameDir/download/maps
+    const downloadMapsDir = path.join(gameDir, 'download', 'maps');
+    if (fs.existsSync(downloadMapsDir)) {
+        try {
+            const files = fs.readdirSync(downloadMapsDir);
+            for (const file of files) {
+                if (file.toLowerCase().endsWith('.bsp')) {
+                    addMapFile(path.join(downloadMapsDir, file), 'Server Download');
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 3. Garry's Mod Addons in gameDir/addons
+    const addonsDir = path.join(gameDir, 'addons');
+    if (fs.existsSync(addonsDir)) {
+        try {
+            const entries = fs.readdirSync(addonsDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const addonMaps = path.join(addonsDir, entry.name, 'maps');
+                    if (fs.existsSync(addonMaps)) {
+                        try {
+                            for (const f of fs.readdirSync(addonMaps)) {
+                                if (f.toLowerCase().endsWith('.bsp')) {
+                                    addMapFile(path.join(addonMaps, f), `Addon: ${entry.name}`);
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 4. Steam Workshop Content for GMod (AppID 4000)
+    const workshopDir = path.resolve(gameDir, '..', '..', 'workshop', 'content', '4000');
+    if (fs.existsSync(workshopDir)) {
+        try {
+            const wsItems = fs.readdirSync(workshopDir, { withFileTypes: true });
+            for (const item of wsItems) {
+                if (item.isDirectory()) {
+                    const itemDir = path.join(workshopDir, item.name);
+                    const itemMaps = path.join(itemDir, 'maps');
+                    const targetScanDir = fs.existsSync(itemMaps) ? itemMaps : itemDir;
+                    try {
+                        for (const f of fs.readdirSync(targetScanDir)) {
+                            if (f.toLowerCase().endsWith('.bsp')) {
+                                addMapFile(path.join(targetScanDir, f), `Workshop (${item.name})`);
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+    }
+
+    mapList.sort((a, b) => a.name.localeCompare(b.name));
+    return mapList;
 });
 
 // Map Asset Inspection

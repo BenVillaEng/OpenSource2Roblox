@@ -690,7 +690,7 @@ namespace Source2Roblox.Geometry
         public static WorldGeometry BakeBSP_RBXL(BSPFile bsp, GameMount game = null, string sourceRootDir = null, bool openWhenDone = false)
         {
             string mapName = bsp.Name;
-            string gameName = GameMount.GetGameName(game);
+            string gameName = GameMount.GetGameName(game) ?? "SourceGame";
 
             // Textures and meshes must live under the active Roblox Studio version's
             // content folder so rbxasset://source/<game>/... URLs resolve correctly in Studio.
@@ -1241,6 +1241,9 @@ namespace Source2Roblox.Geometry
                 {
                     int skin = prop.Skin;
 
+                    if (string.IsNullOrEmpty(prop.Name))
+                        continue;
+
                     if (!models.TryGetValue(prop.Name, out var skins))
                         continue;
 
@@ -1295,6 +1298,9 @@ namespace Source2Roblox.Geometry
                 var cf = prop.CFrame;
                 int skin = prop.TryGet<int>("skin") ?? 0;
                 var modelName = prop.Get<string>("model");
+
+                if (string.IsNullOrEmpty(modelName))
+                    continue;
 
                 if (!models.TryGetValue(modelName, out var skins))
                     continue;
@@ -1377,7 +1383,7 @@ namespace Source2Roblox.Geometry
 
                     var emitter = new Part()
                     {
-                        Name = lightEnt.Name,
+                        Name = lightEnt.Name ?? "Light",
                         Size = new Vector3(),
                         CanCollide = false,
                         CanTouch = false,
@@ -1415,6 +1421,9 @@ namespace Source2Roblox.Geometry
                 var angles = new Vector3();
                 var origin = rope.Get<Vector3>("origin");
 
+                if (origin == null || string.IsNullOrEmpty(rope.Name))
+                    continue;
+
                 var ropeAtt = new Attachment()
                 {
                     Name = rope.Name,
@@ -1427,9 +1436,11 @@ namespace Source2Roblox.Geometry
 
             foreach (var rope in ropes)
             {
-                string material = rope
-                    .Get<string>("ropematerial")
-                    .Replace("cable/", "");
+                string rawMaterial = rope.Get<string>("ropematerial");
+                if (string.IsNullOrEmpty(rawMaterial))
+                    continue;
+
+                string material = rawMaterial.Replace("cable/", "");
 
                 if (material == "chain")
                     continue;
@@ -1437,7 +1448,7 @@ namespace Source2Roblox.Geometry
                 string key0 = rope.Name,
                        key1 = rope.GetString("nextkey");
 
-                if (key1 == null)
+                if (string.IsNullOrEmpty(key0) || string.IsNullOrEmpty(key1))
                     continue;
 
                 if (!ropeDict.TryGetValue(key0, out var att0))

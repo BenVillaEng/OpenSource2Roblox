@@ -236,13 +236,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnBrowseBsp.addEventListener('click', async () => {
         const file = await window.api.browseFile([
-            { name: 'Source BSP Maps', extensions: ['bsp'] },
+            { name: 'Source Map & Nav Files (*.bsp, *.nav)', extensions: ['bsp', 'nav'] },
+            { name: 'Source BSP Maps (*.bsp)', extensions: ['bsp'] },
+            { name: 'Source Navigation Mesh (*.nav)', extensions: ['nav'] },
             { name: 'All Files', extensions: ['*'] }
         ]);
         if (file) {
-            const mapName = file.replace(/.*[\\\/]/, '').replace(/\.bsp$/i, '');
-            selectedMapInput.value = mapName;
-            logToConsole(`Selected custom map file: ${file}`, 'info');
+            let targetFile = file;
+            if (file.toLowerCase().endsWith('.nav')) {
+                const bspCandidate = file.replace(/\.nav$/i, '.bsp');
+                targetFile = bspCandidate;
+                logToConsole(`Selected navigation mesh (.nav). Paired with map: ${bspCandidate.replace(/.*[\\\/]/, '')}`, 'info');
+            }
+            selectedMapInput.value = targetFile;
+            logToConsole(`Selected custom map file: ${targetFile}`, 'info');
         }
     });
 
@@ -279,7 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Maps Table Population & Filtering ---
     async function loadMapsForGame(gameDir) {
         if (!gameDir) return;
-        mapsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:15px;">Scanning maps directory...</td></tr>';
+        mapsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:15px;">Scanning maps, addons, and workshop directories...</td></tr>';
 
         currentMaps = await window.api.scanMaps(gameDir);
         renderMapsTable(currentMaps);
@@ -290,27 +297,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         mapCountLabel.innerText = `${maps.length} maps`;
 
         if (maps.length === 0) {
-            mapsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--gs-text-dim);">No .bsp map files found in this game\'s maps/ folder.</td></tr>';
+            mapsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--gs-text-dim);">No .bsp map files found in maps/, download/, or addons folders.</td></tr>';
             return;
         }
 
         maps.forEach(map => {
             const tr = document.createElement('tr');
+            const navBadge = map.hasNav ? '<span title="Accompanying .nav navigation mesh found" style="color:var(--gs-yellow); font-size:10px; margin-left:6px; border:1px solid var(--gs-yellow); padding:1px 3px; border-radius:2px; font-weight:bold;">NAV</span>' : '';
+            const categoryBadge = map.category && map.category !== 'Stock Game' ? `<span style="color:var(--gs-text-dim); font-size:10px; margin-left:4px;">[${map.category}]</span>` : '';
+
             tr.innerHTML = `
-                <td><strong>${map.name}</strong></td>
+                <td><strong>${map.name}</strong>${navBadge}${categoryBadge}</td>
                 <td>${map.sizeFormatted}</td>
                 <td style="color:var(--gs-text-dim);">${map.modified}</td>
             `;
 
-            if (selectedMapInput.value && selectedMapInput.value.toLowerCase() === map.name.toLowerCase()) {
+            if (selectedMapInput.value && (selectedMapInput.value.toLowerCase() === map.name.toLowerCase() || (map.fullPath && selectedMapInput.value.toLowerCase() === map.fullPath.toLowerCase()))) {
                 tr.classList.add('selected');
             }
 
             tr.addEventListener('click', () => {
                 document.querySelectorAll('#maps-table-body tr').forEach(r => r.classList.remove('selected'));
                 tr.classList.add('selected');
-                selectedMapInput.value = map.name;
-                statusText.innerText = `Selected map: ${map.name} (${map.sizeFormatted}). Ready to convert.`;
+                selectedMapInput.value = map.fullPath || map.name;
+                statusText.innerText = `Selected map: ${map.name} (${map.sizeFormatted})${map.hasNav ? ' [with .nav]' : ''}. Ready to convert.`;
             });
 
             mapsTableBody.appendChild(tr);
@@ -634,6 +644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Switch UI to converting state
         isConverting = true;
+        conversionHasErrors = false;
         btnConvertAction.disabled = true;
         btnOpenStudio.disabled = true;
         btnCancel.style.display = 'inline-block';
@@ -665,6 +676,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Handle Engine Events
+    let conversionHasErrors = false;
+
     window.api.onEngineEvent((evt) => {
         if (!evt) return;
 
@@ -697,19 +710,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             case 'error': {
+                conversionHasErrors = true;
                 logToConsole(evt.message, 'error');
                 break;
             }
 
             case 'done': {
                 progressBar.style.width = '100%';
-                statusText.innerText = 'Conversion completed successfully!';
-                logToConsole('CONVERSION FINISHED SUCCESSFULLY [OK]', 'success');
-                btnOpenStudio.disabled = false;
-                updateCacheStats();
+                if (conversionHasErrors) {
+                    statusText.innerText = 'Conversion encountered errors. Place file was not generated.';
+                    logToConsole('CONVERSION ENCOUNTERED ERRORS [FAILED]', 'error');
+                } else {
+                    statusText.innerText = 'Conversion completed successfully!';
+                    logToConsole('CONVERSION FINISHED SUCCESSFULLY [OK]', 'success');
+                    btnOpenStudio.disabled = false;
+                    updateCacheStats();
 
-                if (chkOpenStudio.checked && lastExportedPlacePath) {
-                    window.api.openInStudio(lastExportedPlacePath);
+                    if (chkOpenStudio.checked && lastExportedPlacePath) {
+                        window.api.openInStudio(lastExportedPlacePath);
+                    }
                 }
                 break;
             }
@@ -734,11 +753,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         isConverting = false;
         btnConvertAction.disabled = false;
         btnCancel.style.display = 'none';
-        if (data.code === 0) {
+        if (data.code === 0 && !conversionHasErrors) {
             statusText.innerText = 'Conversion complete. Ready.';
         } else {
-            statusText.innerText = `Conversion stopped with exit code: ${data.code}`;
-            logToConsole(`Engine process exited with code ${data.code}`, data.code === 0 ? 'info' : 'error');
+            statusText.innerText = `Conversion failed (Exit code: ${data.code}). Check console log.`;
+            logToConsole(`Engine process finished with code ${data.code}${conversionHasErrors ? ' (with errors)' : ''}`, 'error');
         }
     });
 

@@ -15,6 +15,7 @@ namespace Source2Roblox.FileSystem
         private readonly Dictionary<string, VPKFile> Mounts;
         private readonly Dictionary<string, string> _pathToVpk = new Dictionary<string, string>();
         private readonly List<string> _vpkPriority = new List<string>();
+        private readonly List<string> _mountedGameDirs = new List<string>();
 
         private static readonly KVSerializer GameInfoHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
 
@@ -124,15 +125,245 @@ namespace Source2Roblox.FileSystem
                 Mounts.Add(name, vpk);
             }
 
+            // Automatically mount dependencies on other Source games, addons, and workshop folders
+            MountDependencies(rootDir);
+
             Console.WriteLine("Ready!");
+        }
+
+        private void MountDependencies(DirectoryInfo rootDir)
+        {
+            Console.WriteLine("Scanning game dependencies and mounts...");
+
+            // 1. Mount garrysmod/cfg/mount.cfg if present
+            string mountCfg = Path.Combine(GameDir, "cfg", "mount.cfg");
+            if (File.Exists(mountCfg))
+            {
+                try
+                {
+                    Console.WriteLine($"Parsing mount.cfg: {mountCfg}");
+                    using (var fs = File.OpenRead(mountCfg))
+                    {
+                        var kv = GameInfoHelper.Deserialize(fs);
+                        foreach (var child in kv.Children)
+                        {
+                            string mountPath = child.Value?.ToString();
+                            if (!string.IsNullOrWhiteSpace(mountPath))
+                            {
+                                mountPath = mountPath.Trim('\"', '\'').Replace('\\', '/');
+                                MountGameDirectory(mountPath, child.Name);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Notice: mount.cfg parse info: {ex.Message}");
+                }
+            }
+
+            // 2. Discover all Steam library folders across the system
+            var libraryRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Sibling common directory
+            if (rootDir?.Parent != null && rootDir.Parent.Exists)
+            {
+                string commonDir = rootDir.Parent.FullName;
+                string steamApps = Path.GetFullPath(Path.Combine(commonDir, ".."));
+                libraryRoots.Add(steamApps);
+
+                string vdfPath = Path.Combine(steamApps, "libraryfolders.vdf");
+                if (File.Exists(vdfPath))
+                {
+                    ParseLibraryFolders(vdfPath, libraryRoots);
+                }
+            }
+
+            // Standard fallback Steam libraries on Windows
+            string progFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            if (!string.IsNullOrEmpty(progFilesX86))
+            {
+                string stdSteam = Path.Combine(progFilesX86, "Steam", "steamapps");
+                if (Directory.Exists(stdSteam))
+                {
+                    libraryRoots.Add(stdSteam);
+                    string vdfPath = Path.Combine(stdSteam, "libraryfolders.vdf");
+                    if (File.Exists(vdfPath))
+                        ParseLibraryFolders(vdfPath, libraryRoots);
+                }
+            }
+
+            string[] driveLetters = { "C", "D", "E", "F", "G", "H" };
+            foreach (var drive in driveLetters)
+            {
+                string libCandidate = $"{drive}:/SteamLibrary/steamapps";
+                if (Directory.Exists(libCandidate))
+                    libraryRoots.Add(libCandidate);
+            }
+
+            // Known Source games directory signatures (CS:S, TF2, HL2, Ep1, Ep2, Portal, L4D2, DoD, CS:GO)
+            var knownGames = new (string Name, string Folder, string SubDir)[]
+            {
+                ("cstrike", "Counter-Strike Source", "cstrike"),
+                ("tf", "Team Fortress 2", "tf"),
+                ("hl2", "Half-Life 2", "hl2"),
+                ("episodic", "Half-Life 2", "episodic"),
+                ("ep2", "Half-Life 2", "ep2"),
+                ("portal", "Portal", "portal"),
+                ("portal2", "Portal 2", "portal2"),
+                ("left4dead2", "Left 4 Dead 2", "left4dead2"),
+                ("dod", "Day of Defeat Source", "dod"),
+                ("csgo", "Counter-Strike Global Offensive", "csgo")
+            };
+
+            foreach (var lib in libraryRoots)
+            {
+                string common = Path.Combine(lib, "common");
+                if (!Directory.Exists(common)) continue;
+
+                foreach (var g in knownGames)
+                {
+                    string candidate = Path.Combine(common, g.Folder, g.SubDir);
+                    if (Directory.Exists(candidate))
+                    {
+                        MountGameDirectory(candidate, g.Name);
+                    }
+                }
+            }
+
+            // 3. Mount Garry's Mod addons folders
+            string addonsDir = Path.Combine(GameDir, "addons");
+            if (Directory.Exists(addonsDir))
+            {
+                try
+                {
+                    foreach (var sub in Directory.GetDirectories(addonsDir))
+                    {
+                        MountGameDirectory(sub, Path.GetFileName(sub));
+                    }
+                }
+                catch {}
+            }
+
+            // 4. Mount Garry's Mod download folder (server downloads)
+            string downloadDir = Path.Combine(GameDir, "download");
+            if (Directory.Exists(downloadDir))
+            {
+                MountGameDirectory(downloadDir, "download");
+            }
+
+            // 5. Mount Garry's Mod workshop folder
+            string workshopDir = Path.Combine(GameDir, "workshop");
+            if (Directory.Exists(workshopDir))
+            {
+                MountGameDirectory(workshopDir, "workshop");
+            }
+
+            // 6. Mount Steam workshop content for GMod (AppID 4000)
+            foreach (var lib in libraryRoots)
+            {
+                string wsContent4000 = Path.Combine(lib, "workshop", "content", "4000");
+                if (Directory.Exists(wsContent4000))
+                {
+                    try
+                    {
+                        foreach (var wsItem in Directory.GetDirectories(wsContent4000))
+                        {
+                            MountGameDirectory(wsItem, $"ws_{Path.GetFileName(wsItem)}");
+                        }
+                    }
+                    catch {}
+                }
+            }
+        }
+
+        private static void ParseLibraryFolders(string vdfPath, HashSet<string> libraryRoots)
+        {
+            try
+            {
+                string content = File.ReadAllText(vdfPath);
+                var matches = System.Text.RegularExpressions.Regex.Matches(content, "\"path\"\\s+\"([^\"]+)\"");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    if (m.Groups.Count > 1)
+                    {
+                        string p = m.Groups[1].Value.Replace("\\\\", "/").Replace('\\', '/');
+                        string apps = Path.Combine(p, "steamapps");
+                        if (Directory.Exists(apps))
+                            libraryRoots.Add(apps);
+                        else if (Directory.Exists(p))
+                            libraryRoots.Add(p);
+                    }
+                }
+            }
+            catch {}
+        }
+
+        public void MountGameDirectory(string dir, string gameLabel)
+        {
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                return;
+
+            string normalized = Path.GetFullPath(dir).Replace('\\', '/');
+            if (normalized.Equals(GameDir, StringComparison.OrdinalIgnoreCase) || _mountedGameDirs.Contains(normalized))
+                return;
+
+            _mountedGameDirs.Add(normalized);
+            Console.WriteLine($"\t[Dependency Mount] Mounted game directory '{gameLabel}': {normalized}");
+
+            // Mount any *_dir.vpk files inside this game directory
+            try
+            {
+                foreach (var file in Directory.GetFiles(normalized, "*_dir.vpk", SearchOption.TopDirectoryOnly))
+                {
+                    string localPath = file
+                        .Replace("_dir", "")
+                        .Replace(".vpk", "")
+                        .Replace('\\', '/');
+
+                    string vpkName = $"{gameLabel}_{Path.GetFileName(localPath)}";
+                    if (Mounts.ContainsKey(vpkName) || Mounts.ContainsKey(Path.GetFileName(localPath)))
+                        continue;
+
+                    try
+                    {
+                        var vpk = new VPKFile(localPath);
+                        if (vpk.Mounted)
+                        {
+                            Mounts[vpkName] = vpk;
+                            Console.WriteLine($"\t\tMounted VPK '{Path.GetFileName(file)}' as '{vpkName}'");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"\t\tFailed to mount VPK {file}: {ex.Message}");
+                    }
+                }
+
+                // Check custom subdirectories in dependency game
+                string customDir = Path.Combine(normalized, "custom");
+                if (Directory.Exists(customDir))
+                {
+                    foreach (var sub in Directory.GetDirectories(customDir))
+                    {
+                        string normSub = Path.GetFullPath(sub).Replace('\\', '/');
+                        if (!_mountedGameDirs.Contains(normSub))
+                            _mountedGameDirs.Add(normSub);
+                    }
+                }
+            }
+            catch {}
         }
 
         public void BindZipArchive(string name, ZipArchive archive)
         {
             if (Mounts.ContainsKey(name))
-                throw new Exception($"Archive name '{name}' already in use!");
-            else
-                Console.WriteLine("Warming up PakFile, this may take a moment...");
+            {
+                try { Mounts[name].Dispose(); } catch {}
+                Mounts.Remove(name);
+            }
+
+            Console.WriteLine("Warming up PakFile, this may take a moment...");
             
             // Fetch a dummy entry to make the archive load.
             archive.GetEntry("");
@@ -234,6 +465,20 @@ namespace Source2Roblox.FileSystem
                         Routing[path] = route;
                     }
                 }
+
+                if (route == null)
+                {
+                    foreach (string depDir in _mountedGameDirs)
+                    {
+                        string depPath = Path.Combine(depDir, path);
+                        if (File.Exists(depPath))
+                        {
+                            route = depPath;
+                            Routing[path] = route;
+                            break;
+                        }
+                    }
+                }
                 
                 return route;
             }
@@ -241,6 +486,12 @@ namespace Source2Roblox.FileSystem
 
         public bool HasFile(string path)
         {
+            if (string.IsNullOrEmpty(path))
+                return false;
+
+            if (File.Exists(path))
+                return true;
+
             var route = GetRouting(path);
 
             if (route == null)
@@ -257,6 +508,12 @@ namespace Source2Roblox.FileSystem
 
         public Stream OpenRead(string path)
         {
+            if (File.Exists(path))
+            {
+                Console.WriteLine($"Opening {path}");
+                return File.OpenRead(path);
+            }
+
             var route = GetRouting(path);
 
             if (route == null)

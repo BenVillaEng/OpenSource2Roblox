@@ -151,9 +151,20 @@
             <section class="gs-tab-panel" id="tab-cloud">
                 <div class="gs-groupbox">
                     <span class="gs-groupbox-title">Roblox Open Cloud API Configuration</span>
-                    <p style="margin-bottom: 12px; color: var(--gs-text-dim);">
+                    <p style="margin-bottom: 8px; color: var(--gs-text-dim);">
                         Connecting your Roblox Open Cloud API Key allows textures and meshes to be uploaded server-side as permanent <code>rbxassetid://</code> assets. Without this, assets only render locally on your machine.
                     </p>
+
+                    <div class="gs-callout" style="margin-bottom: 12px; font-size: 11px;">
+                        <strong>Step-by-step Setup Order:</strong><br>
+                        1. Open <strong>Roblox Creator Dashboard</strong> (<a href="#" id="link-creator-dashboard" style="color:var(--gs-yellow);">create.roblox.com/dashboard/credentials</a>)<br>
+                        2. Navigate to <strong>API Keys</strong> &gt; Click <strong>Create API Key</strong><br>
+                        3. Under <strong>Access Permissions</strong>, add and configure both:<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;• <strong>Assets</strong>: enable <strong>Write</strong> and <strong>Read</strong><br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;• <strong>Assets Permission</strong>: enable <strong>Write</strong> and <strong>Read</strong><br>
+                        4. Select <strong>Creator</strong> (User Account or Group)<br>
+                        5. Copy the generated Key and Creator ID below, then click <strong>Test Credentials</strong>!
+                    </div>
 
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <div style="display: flex; gap: 8px; align-items: center;">
@@ -218,7 +229,7 @@
                     <h3>1. Quick Start: How to Convert a Map in 3 Steps</h3>
                     <ol>
                         <li><strong>Select your Game</strong>: In the <em>Maps</em> tab, pick your installed Steam game (e.g. <code>Garry's Mod</code> or <code>CS:GO</code>) from the dropdown or click <em>Browse...</em>.</li>
-                        <li><strong>Choose a Map</strong>: Click on any map from the list (such as <code>office_summer</code> or <code>gm_construct</code>).</li>
+                        <li><strong>Choose a Map</strong>: Click on any map from the list (such as <code>gm_construct</code>, <code>office_summer</code>, or workshop maps).</li>
                         <li><strong>Hit Convert Now</strong>: Click the golden <strong>CONVERT MAP NOW</strong> button at the bottom right. Track the progress in the Console!</li>
                     </ol>
 
@@ -233,25 +244,38 @@
                         </p>
                     </div>
 
-                    <h3>3. Setting Up Your Roblox API Key</h3>
+                    <h3>3. Setting Up Your Roblox API Key (Exact Order)</h3>
                     <ol>
-                        <li>Go to the <a href="#" style="color:var(--gs-yellow);" id="link-creator-dashboard">Roblox Creator Dashboard</a> and navigate to <strong>Open Cloud > API Keys</strong>.</li>
-                        <li>Click <strong>Create API Key</strong>.</li>
-                        <li>Under <em>Access Permissions</em>, search for <strong>Asset System</strong> and grant <strong>Write (Asset: Create)</strong> permission.</li>
+                        <li>Go to the <a href="https://create.roblox.com/dashboard/credentials" target="_blank" style="color:var(--gs-yellow);">Roblox Creator Dashboard</a>.</li>
+                        <li>Navigate to <strong>API Keys</strong> and click <strong>Create API Key</strong>.</li>
+                        <li>Under <em>Access Permissions</em>, search and add both of the following:
+                            <ul>
+                                <li><strong>Assets</strong>: enable <strong>Write</strong> (Asset: Create) and <strong>Read</strong></li>
+                                <li><strong>Assets Permission</strong>: enable <strong>Write</strong> and <strong>Read</strong></li>
+                            </ul>
+                        </li>
                         <li>Under <em>Creator</em>, select whether you are publishing under your personal User Account or a Roblox Group.</li>
                         <li>Copy the generated API Key and paste it into the <strong>Roblox Cloud</strong> tab in this app.</li>
                         <li>Enter your numeric <strong>Creator ID</strong> (found in your Roblox Profile URL or Group URL).</li>
                         <li>Click <strong>Test Credentials</strong> to verify!</li>
                     </ol>
 
-                    <h3>4. Supported Games & Best Practices</h3>
+                    <h3>4. Workshop Addons, Dependencies & Nav Meshes</h3>
                     <ul>
-                        <li><strong>Counter-Strike: Global Offensive (Build 1.38.8.1)</strong>: Tested with <code>de_dust2</code>, <code>de_ancient</code>, <code>de_mirage</code>.</li>
-                        <li><strong>Garry's Mod (x86-64)</strong>: Tested with <code>gm_construct</code>, <code>gm_flatgrass</code>, <code>office_summer</code>, <code>toska</code>.</li>
-                        <li><strong>Counter-Strike: Source & Half-Life 2</strong>: Fully supported.</li>
+                        <li><strong>Garry's Mod Workshop Addons</strong>: Maps located in <code>addons/</code>, <code>download/maps/</code>, or Steam workshop directories (<code>workshop/content/4000/</code>) are auto-discovered and displayed in the map list.</li>
+                        <li><strong>Game Dependencies Auto-Mounting</strong>: Workshop maps that use assets from <strong>Counter-Strike: Source (CS:S)</strong>, <strong>Team Fortress 2 (TF2)</strong>, <strong>Half-Life 2 (HL2)</strong>, <strong>Episode 1/2</strong>, <strong>Portal</strong>, or <strong>Left 4 Dead 2</strong> are automatically resolved and mounted across all Steam libraries.</li>
+                        <li><strong>Navigation Meshes (.nav)</strong>: Browsing or selecting a <code>.nav</code> mesh automatically resolves to the corresponding <code>.bsp</code> map. Roblox Studio automatically creates native navigation meshes for 3D worlds via <code>PathfindingService</code>.</li>
                     </ul>
 
-                    <h3>5. Developer Console Commands</h3>
+                    <h3>5. Supported Games & Best Practices</h3>
+                    <ul>
+                        <li><strong>Counter-Strike: Global Offensive (Build 1.38.8.1)</strong>: Tested with <code>de_dust2</code>, <code>de_ancient</code>, <code>de_mirage</code>.</li>
+                        <li><strong>Garry's Mod (x86-64)</strong>: Tested with <code>gm_construct</code>, <code>gm_flatgrass</code>, <code>office_summer</code>, workshop maps.</li>
+                        <li><strong>Counter-Strike: Source & Half-Life 2 (including Ep1 and Ep2)</strong>: Fully supported.</li>
+                        <li><strong>Team Fortress 2</strong>: Fully supported.</li>
+                    </ul>
+
+                    <h3>6. Developer Console Commands</h3>
                     <ul>
                         <li><code>status</code>: Displays current conversion engine state and target map.</li>
                         <li><code>validate</code>: Runs an immediate verification check on your Roblox API credentials.</li>

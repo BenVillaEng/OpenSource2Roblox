@@ -272,9 +272,9 @@ namespace Source2Roblox.World
         {
             var info = new FileInfo(path);
             Name = info.Name.Replace(info.Extension, "");
-            Game = game;
+            Game = game ?? Program.GameMount;
 
-            using (var stream = GameMount.OpenRead(path, game))
+            using (var stream = File.Exists(path) ? File.OpenRead(path) : GameMount.OpenRead(path, Game))
             using (var reader = new BinaryReader(stream))
             {
                 Header = reader.ReadString(4);
