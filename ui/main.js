@@ -252,24 +252,31 @@ ipcMain.handle('scan-maps', async (event, gameDir) => {
         } catch (e) {}
     }
 
-    // 4. Steam Workshop Content for GMod (AppID 4000)
-    const workshopDir = path.resolve(gameDir, '..', '..', 'workshop', 'content', '4000');
-    if (fs.existsSync(workshopDir)) {
+    // 4. Steam Workshop Content (Scan all workshop app folders, e.g. 4000 for GMod, 550 for L4D2, etc.)
+    const workshopBase = path.resolve(gameDir, '..', '..', 'workshop', 'content');
+    if (fs.existsSync(workshopBase)) {
         try {
-            const wsItems = fs.readdirSync(workshopDir, { withFileTypes: true });
-            for (const item of wsItems) {
-                if (item.isDirectory()) {
-                    const itemDir = path.join(workshopDir, item.name);
-                    const itemMaps = path.join(itemDir, 'maps');
-                    const targetScanDir = fs.existsSync(itemMaps) ? itemMaps : itemDir;
-                    try {
-                        for (const f of fs.readdirSync(targetScanDir)) {
-                            if (f.toLowerCase().endsWith('.bsp')) {
-                                addMapFile(path.join(targetScanDir, f), `Workshop (${item.name})`);
-                            }
+            const appDirs = fs.readdirSync(workshopBase, { withFileTypes: true });
+            for (const appDir of appDirs) {
+                if (!appDir.isDirectory()) continue;
+                const appContentPath = path.join(workshopBase, appDir.name);
+                try {
+                    const wsItems = fs.readdirSync(appContentPath, { withFileTypes: true });
+                    for (const item of wsItems) {
+                        if (item.isDirectory()) {
+                            const itemDir = path.join(appContentPath, item.name);
+                            const itemMaps = path.join(itemDir, 'maps');
+                            const targetScanDir = fs.existsSync(itemMaps) ? itemMaps : itemDir;
+                            try {
+                                for (const f of fs.readdirSync(targetScanDir)) {
+                                    if (f.toLowerCase().endsWith('.bsp')) {
+                                        addMapFile(path.join(targetScanDir, f), `Workshop (${item.name})`);
+                                    }
+                                }
+                            } catch (e) {}
                         }
-                    } catch (e) {}
-                }
+                    }
+                } catch (e) {}
             }
         } catch (e) {}
     }
@@ -298,22 +305,32 @@ ipcMain.handle('inspect-map', async (event, { gameDir, mapName }) => {
         let inspectionData = null;
         let errorMessage = null;
         let stdoutRaw = '';
+        let stdoutBuffer = '';
+
+        function processLine(rawLine) {
+            const line = rawLine.trim();
+            if (!line) return;
+            stdoutRaw += line + '\n';
+            if (line.startsWith('S2R_EVENT ')) {
+                try {
+                    const json = JSON.parse(line.substring(10));
+                    if (json.type === 'map_inspection') {
+                        inspectionData = json.data;
+                    } else if (json.type === 'error') {
+                        errorMessage = json.message;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse S2R_EVENT line in inspect-map:', e.message);
+                }
+            }
+        }
 
         proc.stdout.on('data', (data) => {
-            const lines = data.toString().split(/\r?\n/);
+            stdoutBuffer += data.toString();
+            const lines = stdoutBuffer.split(/\r?\n/);
+            stdoutBuffer = lines.pop(); // Hold back incomplete line fragment
             for (const line of lines) {
-                if (!line.trim()) continue;
-                stdoutRaw += line + '\n';
-                if (line.startsWith('S2R_EVENT ')) {
-                    try {
-                        const json = JSON.parse(line.substring(10));
-                        if (json.type === 'map_inspection') {
-                            inspectionData = json.data;
-                        } else if (json.type === 'error') {
-                            errorMessage = json.message;
-                        }
-                    } catch (e) {}
-                }
+                processLine(line);
             }
         });
 
@@ -325,6 +342,9 @@ ipcMain.handle('inspect-map', async (event, { gameDir, mapName }) => {
         });
 
         proc.on('close', (code) => {
+            if (stdoutBuffer && stdoutBuffer.trim()) {
+                processLine(stdoutBuffer);
+            }
             if (inspectionData) {
                 resolve({ success: true, data: inspectionData });
             } else if (errorMessage) {
@@ -499,21 +519,29 @@ ipcMain.handle('start-conversion', async (event, config) => {
             windowsHide: true
         });
 
-        activeEngineProcess.stdout.on('data', (data) => {
-            const lines = data.toString().split(/\r?\n/);
-            for (const line of lines) {
-                if (!line.trim()) continue;
+        let conversionBuffer = '';
+        function sendEventLine(rawLine) {
+            const line = rawLine.trim();
+            if (!line) return;
 
-                if (line.startsWith('S2R_EVENT ')) {
-                    try {
-                        const json = JSON.parse(line.substring(10));
-                        mainWindow?.webContents.send('engine-event', json);
-                    } catch (e) {
-                        mainWindow?.webContents.send('engine-event', { type: 'raw', message: line });
-                    }
-                } else {
+            if (line.startsWith('S2R_EVENT ')) {
+                try {
+                    const json = JSON.parse(line.substring(10));
+                    mainWindow?.webContents.send('engine-event', json);
+                } catch (e) {
                     mainWindow?.webContents.send('engine-event', { type: 'raw', message: line });
                 }
+            } else {
+                mainWindow?.webContents.send('engine-event', { type: 'raw', message: line });
+            }
+        }
+
+        activeEngineProcess.stdout.on('data', (data) => {
+            conversionBuffer += data.toString();
+            const lines = conversionBuffer.split(/\r?\n/);
+            conversionBuffer = lines.pop(); // Retain incomplete line
+            for (const line of lines) {
+                sendEventLine(line);
             }
         });
 
@@ -525,6 +553,9 @@ ipcMain.handle('start-conversion', async (event, config) => {
         });
 
         activeEngineProcess.on('close', (code) => {
+            if (conversionBuffer && conversionBuffer.trim()) {
+                sendEventLine(conversionBuffer);
+            }
             activeEngineProcess = null;
             mainWindow?.webContents.send('engine-exit', { code });
         });

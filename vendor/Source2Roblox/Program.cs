@@ -284,8 +284,8 @@ namespace Source2Roblox
 
                 if (!string.IsNullOrWhiteSpace(inspectMap))
                 {
-                    InspectMap(inspectMap);
-                    return 0;
+                    bool ok = InspectMap(inspectMap);
+                    return ok ? 0 : 1;
                 }
 
                 Emit("start", "Starting Source2Roblox conversion.", new
@@ -519,21 +519,24 @@ namespace Source2Roblox
                     catch {}
                 }
 
-                // Check Steam workshop content folder (4000 for Garry's Mod)
-                string workshopDir = Path.GetFullPath(Path.Combine(GameMount.GameDir, "..", "..", "workshop", "content", "4000"));
-                if (Directory.Exists(workshopDir))
+                // Check Steam workshop content folders (4000 for Garry's Mod, 550 for L4D2, etc.)
+                string workshopBase = Path.GetFullPath(Path.Combine(GameMount.GameDir, "..", "..", "workshop", "content"));
+                if (Directory.Exists(workshopBase))
                 {
                     try
                     {
-                        foreach (var wsItem in Directory.GetDirectories(workshopDir))
+                        foreach (var appDir in Directory.GetDirectories(workshopBase))
                         {
-                            string wsMap = Path.Combine(wsItem, "maps", $"{baseMapName}.bsp");
-                            if (File.Exists(wsMap))
-                                return wsMap;
+                            foreach (var wsItem in Directory.GetDirectories(appDir))
+                            {
+                                string wsMap = Path.Combine(wsItem, "maps", $"{baseMapName}.bsp");
+                                if (File.Exists(wsMap))
+                                    return wsMap;
 
-                            string wsDirectMap = Path.Combine(wsItem, $"{baseMapName}.bsp");
-                            if (File.Exists(wsDirectMap))
-                                return wsDirectMap;
+                                string wsDirectMap = Path.Combine(wsItem, $"{baseMapName}.bsp");
+                                if (File.Exists(wsDirectMap))
+                                    return wsDirectMap;
+                            }
                         }
                     }
                     catch {}
@@ -567,11 +570,17 @@ namespace Source2Roblox
             public bool ExistsInGame { get; set; } = false;
         }
 
-        private static void InspectMap(string mapName)
+        private static bool InspectMap(string mapName)
         {
             try
             {
                 string bspPath = ResolveMapPath(mapName);
+                if (string.IsNullOrWhiteSpace(bspPath) || (!File.Exists(bspPath) && (GameMount == null || !GameMount.HasFile(bspPath, GameMount))))
+                {
+                    Emit("error", $"Could not find map '{mapName}'. Please verify the map exists in maps/, download/, addons/, or workshop content directories.");
+                    return false;
+                }
+
                 string cleanName = Path.GetFileNameWithoutExtension(bspPath);
                 Emit("progress", $"Inspecting assets inside map {cleanName} from {bspPath}...");
                 var bsp = new BSPFile(bspPath, GameMount);
@@ -683,10 +692,12 @@ namespace Source2Roblox
                 };
 
                 Emit("map_inspection", $"Map inspection successful for {bsp.Name}.", payload);
+                return true;
             }
             catch (Exception ex)
             {
                 Emit("error", $"Failed to inspect map {mapName}: {ex.Message}", new { detail = ex.ToString() });
+                return false;
             }
         }
     }

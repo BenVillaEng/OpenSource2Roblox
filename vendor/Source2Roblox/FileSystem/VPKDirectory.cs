@@ -40,30 +40,21 @@ namespace Source2Roblox.FileSystem
 
         public VPKEntry FindEntry(string path)
         {
-            if (!Entries.TryGetValue(path, out VPKEntry entry))
-            {
-                ZipArchiveEntry zipEntry = null;
+            if (string.IsNullOrEmpty(path))
+                return null;
 
-                if (ZipArchive != null)
-                {
-                    zipEntry = ZipArchive.GetEntry(path);
-                    if (zipEntry == null)
-                    {
-                        string searchPath = path.Replace('\\', '/');
-                        zipEntry = ZipArchive.Entries.FirstOrDefault(e => 
-                            e.FullName.Replace('\\', '/').Equals(searchPath, System.StringComparison.OrdinalIgnoreCase)
-                        );
-                    }
-                }
+            if (Entries.TryGetValue(path, out VPKEntry entry))
+                return entry;
 
-                if (zipEntry != null)
-                {
-                    entry = new VPKEntry(zipEntry);
-                    Entries[path] = entry;
-                }
-            }
+            string norm = path.Replace('\\', '/').TrimStart('/');
+            if (Entries.TryGetValue(norm, out entry))
+                return entry;
 
-            return entry;
+            string alt = norm.Replace('/', '\\');
+            if (Entries.TryGetValue(alt, out entry))
+                return entry;
+
+            return null;
         }
 
         private void ReadDirectories(BinaryReader reader, string ext)
@@ -115,6 +106,18 @@ namespace Source2Roblox.FileSystem
         public VPKDirectory(ZipArchive archive)
         {
             ZipArchive = archive;
+            if (archive != null)
+            {
+                foreach (var zEntry in archive.Entries)
+                {
+                    string norm = zEntry.FullName.Replace('\\', '/').TrimStart('/');
+                    var vpkEntry = new VPKEntry(zEntry);
+                    Entries[norm] = vpkEntry;
+                    string alt = norm.Replace('/', '\\');
+                    if (!Entries.ContainsKey(alt))
+                        Entries[alt] = vpkEntry;
+                }
+            }
         }
 
         public IEnumerator<VPKEntry> GetEnumerator()

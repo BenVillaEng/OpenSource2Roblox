@@ -320,7 +320,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.querySelectorAll('#maps-table-body tr').forEach(r => r.classList.remove('selected'));
                 tr.classList.add('selected');
                 selectedMapInput.value = map.fullPath || map.name;
-                statusText.innerText = `Selected map: ${map.name} (${map.sizeFormatted})${map.hasNav ? ' [with .nav]' : ''}. Ready to convert.`;
+                statusText.innerText = `Selected map: ${map.name} (${map.sizeFormatted})${map.hasNav ? ' [with .nav]' : ''}. Ready to convert or inspect.`;
+            });
+
+            tr.addEventListener('dblclick', () => {
+                openInspector(map.fullPath || map.name);
             });
 
             mapsTableBody.appendChild(tr);
@@ -341,25 +345,41 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const gameDir = gameDirInput.value.trim();
+        let gameDir = gameDirInput.value.trim();
+        // If gameDir is not set, try to infer it from the map path
+        if (!gameDir) {
+            const rawMap = mapName.trim();
+            const gmodMatch = rawMap.match(/(.*[\\\/]garrysmod)(?:[\\\/]|$)/i);
+            if (gmodMatch) {
+                gameDir = gmodMatch[1];
+                gameDirInput.value = gameDir;
+                logToConsole(`Auto-detected game directory from map path: ${gameDir}`, 'info');
+            }
+        }
+
         if (!gameDir) {
             statusText.innerText = 'Please select a valid Source game directory first.';
             logToConsole('Cannot inspect: Missing Source game folder.', 'error');
             return;
         }
 
-        const cleanMapName = mapName.trim().replace(/\.bsp$/i, '');
-        inspectModalTitle.innerText = `Map Asset Inspector - ${cleanMapName}.bsp`;
-        inspectFooterInfo.innerText = `Inspecting ${cleanMapName}.bsp in ${gameDir}...`;
+        let targetMap = mapName.trim();
+        if (targetMap.toLowerCase().endsWith('.nav')) {
+            targetMap = targetMap.replace(/\.nav$/i, '.bsp');
+        }
+
+        const mapBaseName = targetMap.replace(/^.*[\\\/]/, '').replace(/\.bsp$/i, '');
+        inspectModalTitle.innerText = `Map Asset Inspector - ${mapBaseName}.bsp`;
+        inspectFooterInfo.innerText = `Inspecting ${mapBaseName}.bsp in ${gameDir}...`;
         modalMapInspect.classList.remove('hidden');
         inspectLoading.classList.remove('hidden');
 
         try {
-            const res = await window.api.inspectMap(gameDir, cleanMapName);
+            const res = await window.api.inspectMap(gameDir, targetMap);
             inspectLoading.classList.add('hidden');
 
             if (!res.success) {
-                logToConsole(`Failed to inspect map '${cleanMapName}': ${res.error}`, 'error');
+                logToConsole(`Failed to inspect map '${mapBaseName}': ${res.error}`, 'error');
                 inspectFooterInfo.innerHTML = `<span style="color:var(--gs-red);">Error: ${res.error}</span>`;
                 inspectModelsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--gs-red);">Failed to inspect map: ${res.error}</td></tr>`;
                 inspectTexturesTbody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:20px; color:var(--gs-red);">Failed to inspect map: ${res.error}</td></tr>`;
@@ -368,7 +388,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             currentInspection = res.data;
-            logToConsole(`Successfully inspected map '${cleanMapName}': ${currentInspection.summary.uniqueModels} models, ${currentInspection.summary.uniqueTextures} textures, ${currentInspection.summary.totalFaces} faces.`, 'success');
+            logToConsole(`Successfully inspected map '${mapBaseName}': ${currentInspection.summary.uniqueModels} models, ${currentInspection.summary.uniqueTextures} textures, ${currentInspection.summary.totalFaces} faces.`, 'success');
 
             // Populate Metrics Ribbon
             const s = currentInspection.summary;
@@ -390,7 +410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             inspectFilterInput.value = '';
             renderFilteredInspectViews();
-            inspectFooterInfo.innerText = `Map ${cleanMapName}.bsp ready. Click 'CONVERT THIS MAP NOW' to export to Roblox.`;
+            inspectFooterInfo.innerText = `Map ${mapBaseName}.bsp ready. Click 'CONVERT THIS MAP NOW' to export to Roblox.`;
         } catch (err) {
             inspectLoading.classList.add('hidden');
             logToConsole(`Inspection exception: ${err.message}`, 'error');
