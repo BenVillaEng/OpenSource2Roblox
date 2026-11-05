@@ -362,6 +362,90 @@ ipcMain.handle('inspect-map', async (event, { gameDir, mapName }) => {
     });
 });
 
+// Texture Preview Generation
+ipcMain.handle('preview-texture', async (event, { gameDir, texturePath }) => {
+    const executablePath = getEngineExecutablePath();
+    if (!fs.existsSync(executablePath)) {
+        return { success: false, error: `Engine executable not found at: ${executablePath}` };
+    }
+    if (!gameDir || !texturePath) {
+        return { success: false, error: 'Both game directory and texture path are required.' };
+    }
+
+    const previewDir = path.join(app.getPath('userData'), 'TexturePreviews');
+    try {
+        if (!fs.existsSync(previewDir)) {
+            fs.mkdirSync(previewDir, { recursive: true });
+        }
+    } catch (e) {}
+
+    return new Promise((resolve) => {
+        const args = ['-game', gameDir, '-previewTexture', texturePath, '-output', previewDir];
+        const proc = spawn(executablePath, args, {
+            cwd: path.dirname(executablePath),
+            windowsHide: true
+        });
+
+        let previewData = null;
+        let errorMessage = null;
+        let stdoutBuffer = '';
+
+        function processLine(rawLine) {
+            const line = rawLine.trim();
+            if (!line) return;
+            if (line.startsWith('S2R_EVENT ')) {
+                try {
+                    const json = JSON.parse(line.substring(10));
+                    if (json.type === 'texture_preview') {
+                        previewData = json.data;
+                    } else if (json.type === 'error') {
+                        errorMessage = json.message;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        proc.stdout.on('data', (data) => {
+            stdoutBuffer += data.toString();
+            const lines = stdoutBuffer.split(/\r?\n/);
+            stdoutBuffer = lines.pop();
+            for (const line of lines) {
+                processLine(line);
+            }
+        });
+
+        proc.stderr.on('data', (data) => {
+            const text = data.toString().trim();
+            if (text) {
+                errorMessage = (errorMessage ? errorMessage + ' | ' : '') + text;
+            }
+        });
+
+        proc.on('close', (code) => {
+            if (stdoutBuffer && stdoutBuffer.trim()) {
+                processLine(stdoutBuffer);
+            }
+            if (previewData && previewData.path && fs.existsSync(previewData.path)) {
+                try {
+                    const fileData = fs.readFileSync(previewData.path);
+                    const base64Url = `data:image/png;base64,${fileData.toString('base64')}`;
+                    resolve({ success: true, data: { ...previewData, dataUrl: base64Url } });
+                } catch (e) {
+                    resolve({ success: true, data: previewData });
+                }
+            } else if (errorMessage) {
+                resolve({ success: false, error: errorMessage });
+            } else {
+                resolve({ success: false, error: `Failed to extract preview for ${texturePath} (Exit code: ${code}).` });
+            }
+        });
+
+        proc.on('error', (err) => {
+            resolve({ success: false, error: `Failed to spawn engine preview process: ${err.message}` });
+        });
+    });
+});
+
 // Dialogs
 ipcMain.handle('browse-folder', async (event, title) => {
     if (!mainWindow) return null;
@@ -512,6 +596,15 @@ ipcMain.handle('start-conversion', async (event, config) => {
     if (config.customTexturesDir) {
         args.push('-customTexturesDir', config.customTexturesDir);
     }
+    if (config.excludedTextures && Array.isArray(config.excludedTextures) && config.excludedTextures.length > 0) {
+        const excludeFile = path.join(app.getPath('userData'), 's2r_excluded_textures.txt');
+        try {
+            fs.writeFileSync(excludeFile, config.excludedTextures.join('\n'), 'utf8');
+            args.push('-excludeList', excludeFile);
+        } catch (e) {
+            console.error('Failed to write excluded textures file:', e.message);
+        }
+    }
 
     try {
         activeEngineProcess = spawn(executablePath, args, {
@@ -589,6 +682,15 @@ ipcMain.handle('open-output-folder', async (event, customPath) => {
     }
     shell.openPath(target);
     return { success: true };
+});
+
+// Open External URL
+ipcMain.handle('open-url', async (event, url) => {
+    if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+        shell.openExternal(url);
+        return { success: true };
+    }
+    return { success: false, error: 'Invalid URL' };
 });
 
 // Open in Roblox Studio

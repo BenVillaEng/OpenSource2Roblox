@@ -13,6 +13,19 @@ using RobloxFiles.DataTypes;
 
 namespace Source2Roblox.Util
 {
+    public class RobloxModerationException : Exception
+    {
+        public string AssetPath { get; }
+        public string Details { get; }
+
+        public RobloxModerationException(string details, string assetPath = null)
+            : base($"Roblox account is moderated: {details}")
+        {
+            Details = details;
+            AssetPath = assetPath ?? string.Empty;
+        }
+    }
+
     public sealed class RobloxAssetResolver
     {
         private const string AssetsUrl = "https://apis.roblox.com/assets/v1/assets";
@@ -33,6 +46,36 @@ namespace Source2Roblox.Util
         private static readonly List<string> FailedUploads = new List<string>();
         private static int SucceededUploads = 0;
         private static int AttemptedUploads = 0;
+
+        // Moderation protection & pause state
+        public static volatile bool IsModerated = false;
+        public static string ModerationReason = "";
+        public static string FlaggedAssetPath = "";
+        private static CancellationTokenSource UploadCts = new CancellationTokenSource();
+
+        public static bool IsModerationErrorMessage(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return false;
+
+            return message.IndexOf("User is moderated", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("account has been moderated", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("User is temporarily banned", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("Account is suspended", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        public static void ResetModerationState()
+        {
+            IsModerated = false;
+            ModerationReason = "";
+            FlaggedAssetPath = "";
+            try
+            {
+                UploadCts?.Dispose();
+            }
+            catch {}
+            UploadCts = new CancellationTokenSource();
+        }
 
         private readonly string rootDir;
         private readonly string localAssetRoot;
@@ -108,6 +151,38 @@ namespace Source2Roblox.Util
             Bind(localPath, "Mesh", "model/x-file-mesh-data", uploadPool, target, property);
         }
 
+        public static bool IsAssetExcluded(string normPath)
+        {
+            if (Program.ExcludedTextures == null || Program.ExcludedTextures.Count == 0)
+                return false;
+
+            string cleanNorm = normPath.Replace('\\', '/');
+            if (cleanNorm.StartsWith("materials/", StringComparison.OrdinalIgnoreCase))
+                cleanNorm = cleanNorm.Substring(10);
+
+            foreach (var excluded in Program.ExcludedTextures)
+            {
+                string cleanExcluded = excluded.Replace('\\', '/').Trim();
+                if (cleanExcluded.StartsWith("materials/", StringComparison.OrdinalIgnoreCase))
+                    cleanExcluded = cleanExcluded.Substring(10);
+
+                if (cleanExcluded.EndsWith(".vmt", StringComparison.OrdinalIgnoreCase) ||
+                    cleanExcluded.EndsWith(".vtf", StringComparison.OrdinalIgnoreCase) ||
+                    cleanExcluded.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanExcluded = Path.ChangeExtension(cleanExcluded, null) ?? cleanExcluded;
+                }
+
+                if (string.IsNullOrWhiteSpace(cleanExcluded))
+                    continue;
+
+                if (cleanNorm.IndexOf(cleanExcluded, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+
+            return false;
+        }
+
         private void Bind(
             string localPath,
             string assetType,
@@ -119,19 +194,7 @@ namespace Source2Roblox.Util
         {
             string normPath = NormalizeLocalPath(localPath);
             bool isMesh = string.Equals(assetType, "Mesh", StringComparison.OrdinalIgnoreCase);
-
-            bool isExcluded = false;
-            if (!isMesh)
-            {
-                foreach (var excluded in Program.ExcludedTextures)
-                {
-                    if (normPath.IndexOf(excluded, StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        isExcluded = true;
-                        break;
-                    }
-                }
-            }
+            bool isExcluded = !isMesh && IsAssetExcluded(normPath);
 
             bool uploadEnabled = isMesh ? Program.UploadMeshes : Program.UploadAssets;
 
@@ -147,19 +210,48 @@ namespace Source2Roblox.Util
             // Enqueue the upload as a task into the pool for parallel execution
             var task = Task.Run(async () =>
             {
+                if (IsModerated || (UploadCts != null && UploadCts.IsCancellationRequested))
+                    return;
+
                 string assetId;
 
                 try
                 {
                     assetId = await ResolveAsync(localPath, assetType, contentType).ConfigureAwait(false);
                 }
+                catch (RobloxModerationException mex)
+                {
+                    IsModerated = true;
+                    ModerationReason = mex.Details;
+                    FlaggedAssetPath = mex.AssetPath;
+                    UploadCts?.Cancel();
+                    Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {mex.Details}");
+                    return;
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
                 catch (Exception e)
                 {
+                    if (IsModerationErrorMessage(e.Message))
+                    {
+                        IsModerated = true;
+                        ModerationReason = e.Message;
+                        FlaggedAssetPath = localPath;
+                        UploadCts?.Cancel();
+                        Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {e.Message}");
+                        return;
+                    }
+
                     Program.Emit("raw", $"Roblox rejected {localPath} after retries; using the local asset instead. {e.Message}");
                     TrackFailure(localPath);
                     SetProperty(target, property, LocalAsset(normPath));
                     return;
                 }
+
+                if (IsModerated || (UploadCts != null && UploadCts.IsCancellationRequested))
+                    return;
 
                 if (string.IsNullOrEmpty(assetId))
                 {
@@ -186,19 +278,7 @@ namespace Source2Roblox.Util
         {
             string normPath = NormalizeLocalPath(localPath);
             bool isMesh = string.Equals(assetType, "Mesh", StringComparison.OrdinalIgnoreCase);
-
-            bool isExcluded = false;
-            if (!isMesh)
-            {
-                foreach (var excluded in Program.ExcludedTextures)
-                {
-                    if (normPath.IndexOf(excluded, StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        isExcluded = true;
-                        break;
-                    }
-                }
-            }
+            bool isExcluded = !isMesh && IsAssetExcluded(normPath);
 
             bool uploadEnabled = isMesh ? Program.UploadMeshes : Program.UploadAssets;
 
@@ -214,19 +294,48 @@ namespace Source2Roblox.Util
             // Enqueue the upload as a task into the pool for parallel execution
             var task = Task.Run(async () =>
             {
+                if (IsModerated || (UploadCts != null && UploadCts.IsCancellationRequested))
+                    return;
+
                 string assetId;
 
                 try
                 {
                     assetId = await ResolveAsync(localPath, assetType, contentType).ConfigureAwait(false);
                 }
+                catch (RobloxModerationException mex)
+                {
+                    IsModerated = true;
+                    ModerationReason = mex.Details;
+                    FlaggedAssetPath = mex.AssetPath;
+                    UploadCts?.Cancel();
+                    Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {mex.Details}");
+                    return;
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
                 catch (Exception e)
                 {
+                    if (IsModerationErrorMessage(e.Message))
+                    {
+                        IsModerated = true;
+                        ModerationReason = e.Message;
+                        FlaggedAssetPath = localPath;
+                        UploadCts?.Cancel();
+                        Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {e.Message}");
+                        return;
+                    }
+
                     Program.Emit("raw", $"Roblox rejected {localPath} after retries; using the local asset instead. {e.Message}");
                     TrackFailure(localPath);
                     SetPropertyValue(targetProperty, LocalAsset(normPath));
                     return;
                 }
+
+                if (IsModerated || (UploadCts != null && UploadCts.IsCancellationRequested))
+                    return;
 
                 if (string.IsNullOrEmpty(assetId))
                 {
@@ -367,6 +476,15 @@ namespace Source2Roblox.Util
                     {
                         int code = (int)response.StatusCode;
 
+                        if (IsModerationErrorMessage(body) || IsModerationErrorMessage(response.ReasonPhrase))
+                        {
+                            IsModerated = true;
+                            ModerationReason = body;
+                            FlaggedAssetPath = filePath;
+                            UploadCts?.Cancel();
+                            throw new RobloxModerationException(body, filePath);
+                        }
+
                         if (IsTransientStatusCode(response.StatusCode))
                         {
                             double? retryAfter = ParseRetryAfter(response);
@@ -451,6 +569,14 @@ namespace Source2Roblox.Util
 
                     if (!response.IsSuccessStatusCode)
                     {
+                        if (IsModerationErrorMessage(body) || IsModerationErrorMessage(response.ReasonPhrase))
+                        {
+                            IsModerated = true;
+                            ModerationReason = body;
+                            UploadCts?.Cancel();
+                            throw new RobloxModerationException(body);
+                        }
+
                         if (IsTransientStatusCode(response.StatusCode))
                         {
                             consecutiveTransientErrors++;
@@ -481,7 +607,17 @@ namespace Source2Roblox.Util
 
                     var error = json["error"];
                     if (error != null && error.Type != JTokenType.Null)
-                        throw new Exception(error.Value<string>("message") ?? error.ToString(Formatting.None));
+                    {
+                        string errorMsg = error.Value<string>("message") ?? error.ToString(Formatting.None);
+                        if (IsModerationErrorMessage(errorMsg))
+                        {
+                            IsModerated = true;
+                            ModerationReason = errorMsg;
+                            UploadCts?.Cancel();
+                            throw new RobloxModerationException(errorMsg);
+                        }
+                        throw new Exception(errorMsg);
+                    }
 
                     string assetId = json["response"]?.Value<string>("assetId");
 
@@ -699,7 +835,13 @@ namespace Source2Roblox.Util
                         return (false, "HTTP 401: Unauthorized. The provided Roblox API key is invalid.");
 
                     if (response.StatusCode == HttpStatusCode.Forbidden)
+                    {
+                        string checkBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (IsModerationErrorMessage(checkBody))
+                            return (false, "HTTP 403: Roblox account is currently moderated ('User is moderated'). Please review your account status on roblox.com.");
+
                         return (false, "HTTP 403: Forbidden. API key lacks permissions or has IP restrictions.");
+                    }
 
                     if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.BadRequest || response.IsSuccessStatusCode)
                     {

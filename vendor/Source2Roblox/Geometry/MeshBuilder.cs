@@ -57,9 +57,39 @@ namespace Source2Roblox.Geometry
 
             while (pending.Count > 0)
             {
+                if (RobloxAssetResolver.IsModerated)
+                {
+                    Program.Emit("moderation_blocked", "Upload paused: Roblox account is moderated.", new
+                    {
+                        asset = RobloxAssetResolver.FlaggedAssetPath,
+                        reason = RobloxAssetResolver.ModerationReason,
+                        canResume = true
+                    });
+                    throw new RobloxModerationException(RobloxAssetResolver.ModerationReason, RobloxAssetResolver.FlaggedAssetPath);
+                }
+
                 var finished = Task.WhenAny(pending).Result;
                 pending.Remove(finished);
-                finished.GetAwaiter().GetResult();
+
+                try
+                {
+                    finished.GetAwaiter().GetResult();
+                }
+                catch (RobloxModerationException mex)
+                {
+                    Program.Emit("moderation_blocked", "Upload paused: Roblox account is moderated.", new
+                    {
+                        asset = mex.AssetPath,
+                        reason = mex.Details,
+                        canResume = true
+                    });
+                    throw;
+                }
+                catch (Exception)
+                {
+                    // Non-moderation upload errors are handled and logged per-task in Bind()
+                }
+
                 complete++;
 
                 if (complete == total || complete - lastReported >= Math.Max(1, total / 20))

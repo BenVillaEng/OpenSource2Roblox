@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
     scanSteamGames: () => ipcRenderer.invoke('scan-steam-games'),
     scanMaps: (gameDir) => ipcRenderer.invoke('scan-maps', gameDir),
     inspectMap: (gameDir, mapName) => ipcRenderer.invoke('inspect-map', { gameDir, mapName }),
+    previewTexture: (gameDir, texturePath) => ipcRenderer.invoke('preview-texture', { gameDir, texturePath }),
     browseFolder: (title) => ipcRenderer.invoke('browse-folder', title),
     browseFile: (filters) => ipcRenderer.invoke('browse-file', filters),
 
@@ -26,6 +27,7 @@ contextBridge.exposeInMainWorld('api', {
     cancelConversion: () => ipcRenderer.invoke('cancel-conversion'),
     openOutputFolder: (customPath) => ipcRenderer.invoke('open-output-folder', customPath),
     openInStudio: (filePath) => ipcRenderer.invoke('open-in-studio', filePath),
+    openUrl: (url) => ipcRenderer.invoke('open-url', url),
 
     // Realtime Event Stream
     onEngineEvent: (callback) => {

@@ -889,4 +889,275 @@ body.crt-phosphor-mode::after {
     z-index: 99999;
 }
 
+/* ==========================================================================
+   Moderation Pause & Resume Highlight
+   ========================================================================== */
+@keyframes resumeGlow {
+    0% { background-color: #c0a638; box-shadow: 0 0 4px #c0a638; }
+    50% { background-color: #f28b24; box-shadow: 0 0 12px #f28b24; }
+    100% { background-color: #c0a638; box-shadow: 0 0 4px #c0a638; }
+}
+
+.btn-resume-glow {
+    animation: resumeGlow 1.8s infinite ease-in-out !important;
+    border-color: #ffe699 !important;
+    color: #1a1405 !important;
+    font-weight: bold !important;
+}
+
+/* ==========================================================================
+   Texture Selector & Inspector System (GoldSource VGUI)
+   ========================================================================== */
+.gs-tex-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background-color: var(--gs-bg-panel);
+    border: 1px solid var(--gs-border-dark);
+    margin-bottom: 6px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.gs-tex-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gs-tex-filter-pills {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tex-filter-pill {
+    background-color: #2e352b;
+    border: 1px solid #4a5a45;
+    color: var(--gs-text-dim);
+    font-size: 11px;
+    font-family: var(--font-primary);
+    padding: 2px 7px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.tex-filter-pill:hover {
+    color: var(--gs-text);
+    border-color: #677d60;
+}
+
+.tex-filter-pill.active {
+    background-color: var(--gs-gold-dark);
+    border-color: var(--gs-gold);
+    color: #000;
+    font-weight: bold;
+}
+
+.tex-filter-pill.pill-warning.active {
+    background-color: #995500;
+    border-color: #ffaa00;
+    color: #fff;
+}
+
+.tex-filter-pill.pill-excluded.active {
+    background-color: #555555;
+    border-color: #888888;
+    color: #fff;
+}
+
+.gs-tex-status-summary {
+    font-size: 11px;
+    color: var(--gs-text-dim);
+    font-family: var(--font-mono);
+}
+
+.gs-tex-split-layout {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+.gs-tex-table-container {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.gs-tex-preview-pane {
+    width: 320px;
+    background-color: var(--gs-bg-panel);
+    border: 2px solid;
+    border-color: var(--gs-border-dark) var(--gs-border-light) var(--gs-border-light) var(--gs-border-dark);
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    gap: 8px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.gs-tex-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--gs-border-dark);
+    padding-bottom: 4px;
+}
+
+.gs-tex-preview-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--gs-yellow);
+}
+
+.gs-tex-preview-img-container {
+    width: 100%;
+    height: 165px;
+    background-color: #171a15;
+    background-image: repeating-conic-gradient(#141712 0% 25%, #1f241c 0% 50%);
+    background-size: 16px 16px;
+    border: 1px solid var(--gs-border-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.gs-tex-preview-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.gs-tex-preview-placeholder {
+    color: var(--gs-text-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    text-align: center;
+}
+
+.gs-tex-preview-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.gs-tex-preview-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--gs-text-dim);
+    font-family: var(--font-mono);
+}
+
+.gs-tex-path-box {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--gs-text-highlight);
+    background-color: var(--gs-bg-input);
+    border: 1px solid var(--gs-border-dark);
+    padding: 4px 6px;
+    word-break: break-all;
+    user-select: text;
+    max-height: 48px;
+    overflow-y: auto;
+}
+
+.gs-tex-risk-card {
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--gs-border-dark);
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gs-tex-risk-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.gs-tex-risk-reason {
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--gs-text);
+}
+
+/* Risk Badges */
+.badge-risk-high {
+    background-color: #641e1e;
+    border: 1px solid #bf3e3e;
+    color: #ffcccc;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.badge-risk-medium {
+    background-color: #5c3e08;
+    border: 1px solid #c2881b;
+    color: #ffe699;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.badge-risk-clean {
+    background-color: #1e331e;
+    border: 1px solid #3d6f3d;
+    color: #b3dfb3;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.badge-excluded {
+    background-color: #3a3a3a;
+    border: 1px solid #666;
+    color: #ccc;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 2px;
+    text-decoration: line-through;
+    display: inline-block;
+}
+
+@keyframes dangerGlow {
+    0% { background-color: #5a2626; border-color: #963838; box-shadow: 0 0 3px #963838; }
+    50% { background-color: #7d2929; border-color: #cf4848; box-shadow: 0 0 10px #cf4848; }
+    100% { background-color: #5a2626; border-color: #963838; box-shadow: 0 0 3px #963838; }
+}
+
+.btn-danger-glow {
+    animation: dangerGlow 2.5s infinite ease-in-out !important;
+}
+
+.row-excluded {
+    opacity: 0.55;
+    background-color: rgba(50, 50, 50, 0.2);
+}
+
+.row-excluded td:last-child {
+    text-decoration: line-through;
+}
+
 

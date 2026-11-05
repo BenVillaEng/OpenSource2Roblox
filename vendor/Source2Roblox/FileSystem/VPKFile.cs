@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -44,9 +44,9 @@ namespace Source2Roblox.FileSystem
             }
         }
         
-        public VPKFile(ZipArchive archive)
+        public VPKFile(ZipArchive archive, byte[] rawArchiveData = null)
         {
-            Root = new VPKDirectory(archive);
+            Root = new VPKDirectory(archive, rawArchiveData);
         }
 
         public bool HasFile(string path)

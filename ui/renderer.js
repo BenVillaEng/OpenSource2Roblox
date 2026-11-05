@@ -33,6 +33,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnInspectClearFilter = document.getElementById('btn-inspect-clear-filter');
     const inspectFooterInfo = document.getElementById('inspect-footer-info');
 
+    // Moderation Alert Modal Elements
+    const modalModerationAlert = document.getElementById('modal-moderation-alert');
+    const btnCloseModerationModal = document.getElementById('btn-close-moderation-modal');
+    const btnModerationDismiss = document.getElementById('btn-moderation-dismiss');
+    const btnModerationOpenRoblox = document.getElementById('btn-moderation-open-roblox');
+    const btnModerationResume = document.getElementById('btn-moderation-resume');
+    const moderationFlaggedAsset = document.getElementById('moderation-flagged-asset');
+    let isModeratedPaused = false;
+
     // Metrics elements
     const metricModels = document.getElementById('metric-models');
     const metricPropInstances = document.getElementById('metric-prop-instances');
@@ -57,6 +66,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentInspection = null;
     let activeInspectSubtab = 'subtab-models';
+
+    // Texture Selector & Viewer Elements
+    const btnTexSelectAll = document.getElementById('btn-tex-select-all');
+    const btnTexDeselectAll = document.getElementById('btn-tex-deselect-all');
+    const btnTexDeselectRisky = document.getElementById('btn-tex-deselect-risky');
+    const btnTexInvert = document.getElementById('btn-tex-invert');
+    const texRiskyBtnCount = document.getElementById('tex-risky-btn-count');
+    const texPillAllCount = document.getElementById('tex-pill-all-count');
+    const texPillRiskyCount = document.getElementById('tex-pill-risky-count');
+    const texPillExcludedCount = document.getElementById('tex-pill-excluded-count');
+    const texSelectedCount = document.getElementById('tex-selected-count');
+    const texTotalCount = document.getElementById('tex-total-count');
+    const texExcludedCount = document.getElementById('tex-excluded-count');
+    const texMasterCheckbox = document.getElementById('tex-master-checkbox');
+    const texFilterPills = document.querySelectorAll('.tex-filter-pill');
+    const texPreviewPane = document.getElementById('tex-preview-pane');
+    const texPreviewCategory = document.getElementById('tex-preview-category');
+    const texPreviewPlaceholder = document.getElementById('tex-preview-placeholder');
+    const texPreviewLoading = document.getElementById('tex-preview-loading');
+    const texPreviewImg = document.getElementById('tex-preview-img');
+    const texPreviewResolution = document.getElementById('tex-preview-resolution');
+    const texPreviewFormat = document.getElementById('tex-preview-format');
+    const texPreviewPath = document.getElementById('tex-preview-path');
+    const texPreviewRiskBadge = document.getElementById('tex-preview-risk-badge');
+    const texPreviewRiskReason = document.getElementById('tex-preview-risk-reason');
+    const btnTexToggleInclude = document.getElementById('btn-tex-toggle-include');
+
+    const excludedTexturesSet = new Set();
+    let activeTexPillFilter = 'all'; // 'all', 'risky', 'excluded'
+    let selectedTextureForPreview = null;
+    const texturePreviewCache = new Map();
 
     // Quick Options
     const chkUploadTextures = document.getElementById('chk-upload-textures');
@@ -390,18 +430,51 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentInspection = res.data;
             logToConsole(`Successfully inspected map '${mapBaseName}': ${currentInspection.summary.uniqueModels} models, ${currentInspection.summary.uniqueTextures} textures, ${currentInspection.summary.totalFaces} faces.`, 'success');
 
+            // Evaluate risk algorithm on all textures if not already provided
+            let totalRiskyCount = 0;
+            currentInspection.textures.forEach(t => {
+                if (!t.risk) {
+                    t.risk = assessTextureRisk(t.path);
+                }
+                if (t.risk.isRisky) totalRiskyCount++;
+            });
+
             // Populate Metrics Ribbon
             const s = currentInspection.summary;
             metricModels.innerText = s.uniqueModels.toLocaleString();
             metricPropInstances.innerText = `${s.totalPropInstances.toLocaleString()} total instances`;
             metricTextures.innerText = s.uniqueTextures.toLocaleString();
-            metricTexSub.innerText = `${s.uniqueTextures} materials/textures`;
+            metricTexSub.innerHTML = totalRiskyCount > 0
+                ? `${s.uniqueTextures} textures <span style="color:#ffaaaa; font-weight:bold;">(${totalRiskyCount} risky)</span>`
+                : `${s.uniqueTextures} textures (Clean)`;
             metricFaces.innerText = s.totalFaces.toLocaleString();
             metricDisplacements.innerText = `${s.totalDisplacements} Displacements`;
             metricBrushes.innerText = s.totalBrushes.toLocaleString();
             metricBspVersion.innerText = `BSP v${currentInspection.bspVersion}`;
             metricEntities.innerText = s.totalEntities.toLocaleString();
             metricSkyname.innerText = `Sky: ${currentInspection.skyName || 'default'}`;
+
+            // Reset preview pane state
+            selectedTextureForPreview = null;
+            if (texPreviewPlaceholder) texPreviewPlaceholder.classList.remove('hidden');
+            if (texPreviewImg) {
+                texPreviewImg.classList.add('hidden');
+                texPreviewImg.src = '';
+            }
+            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+            if (texPreviewResolution) texPreviewResolution.innerText = 'Res: -- x --';
+            if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: --';
+            if (texPreviewPath) texPreviewPath.innerText = 'materials/...';
+            if (texPreviewCategory) texPreviewCategory.innerText = 'World Texture';
+            if (texPreviewRiskBadge) {
+                texPreviewRiskBadge.className = 'badge-risk-clean';
+                texPreviewRiskBadge.innerText = 'CLEAN (LOW RISK)';
+            }
+            if (texPreviewRiskReason) texPreviewRiskReason.innerText = 'Select a texture to evaluate risk.';
+            if (btnTexToggleInclude) {
+                btnTexToggleInclude.innerText = 'EXCLUDE FROM UPLOAD';
+                btnTexToggleInclude.classList.remove('btn-gold');
+            }
 
             // Tab Badges
             tabModelCount.innerText = currentInspection.models.length;
@@ -420,6 +493,244 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeInspector() {
         modalMapInspect.classList.add('hidden');
+        if (excludedTexturesSet.size > 0) {
+            logToConsole(`Texture Exclusion Active: ${excludedTexturesSet.size} textures marked safe (will not upload to Roblox).`, 'info');
+        }
+    }
+
+    function assessTextureRisk(path) {
+        if (!path) return { level: 'CLEAN', score: 0, tags: [], reason: 'Safe', isRisky: false };
+        const lower = path.toLowerCase().replace(/\\/g, '/');
+
+        const nudityKeywords = [
+            'pinup', 'girl', 'nude', 'naked', 'playboy', 'hentai', 'anime_girl', 'sexy', 'boob',
+            'tits', 'bikini', 'lingerie', 'swimsuit', 'cleavage', 'ass', 'butt', 'penis', 'dick',
+            'cock', 'vagina', 'pussy', 'strip', 'stripper', 'erotic', 'porn', 'xxx', 'waifu',
+            'poster_girl', 'girl_poster', 'woman_poster', 'babes', 'adult', 'bra', 'panties',
+            'underwear', 'nsfw', 'fetish', 'lewd', 'camgirl', 'sensual', 'nudity'
+        ];
+
+        const goreKeywords = [
+            'gore', 'blood', 'bloody', 'guts', 'flesh', 'gib', 'gibs', 'corpse', 'dead_body',
+            'deadbody', 'mutilat', 'dismember', 'severed', 'wound', 'entrails', 'viscera',
+            'slaughter', 'decapitat', 'splatter', 'murder', 'carnage', 'decap', 'hanging_body',
+            'charred_corpse', 'severed_limb'
+        ];
+
+        const drugKeywords = [
+            'beer', 'liquor', 'wine', 'vodka', 'whiskey', 'whisky', 'rum', 'tequila', 'alcohol',
+            'bar_sign', 'pub_sign', 'cigar', 'cigarette', 'smoke', 'tobacco', 'weed', 'cannabis',
+            'marijuana', 'joint', 'bong', 'drug', 'pills', 'syringe', 'needle', 'cocaine', 'meth',
+            'heroin', 'pharmacy', 'drunk', 'bottle_labels', 'budweiser', 'heineken', 'corona',
+            'jackdaniels', 'ashtray', 'smokes', 'carton', 'pack_smokes', 'snuff', 'hookah', 'vape'
+        ];
+
+        const hateKeywords = ['nazi', 'swastika', 'hitler', 'ss_', 'terror', 'kkk', 'fascist', 'aryan'];
+
+        let score = 0;
+        const tags = [];
+        const reasons = [];
+
+        for (const kw of nudityKeywords) {
+            if (lower.includes(kw)) {
+                tags.push('Nudity/Pinup');
+                reasons.push(`Pinup/Nudity keyword ('${kw}')`);
+                score = Math.max(score, 95);
+                break;
+            }
+        }
+
+        for (const kw of goreKeywords) {
+            if (lower.includes(kw)) {
+                tags.push('Gore/Blood');
+                reasons.push(`Gore/Blood keyword ('${kw}')`);
+                score = Math.max(score, 85);
+                break;
+            }
+        }
+
+        for (const kw of drugKeywords) {
+            if (lower.includes(kw)) {
+                tags.push('Alcohol/Drugs');
+                reasons.push(`Alcohol/Drugs keyword ('${kw}')`);
+                score = Math.max(score, 75);
+                break;
+            }
+        }
+
+        for (const kw of hateKeywords) {
+            if (lower.includes(kw)) {
+                tags.push('Controversial');
+                reasons.push(`Extremist/Hate keyword ('${kw}')`);
+                score = Math.max(score, 99);
+                break;
+            }
+        }
+
+        const isDecalOrPoster = lower.startsWith('decals/') || lower.includes('/decals/') ||
+                                lower.includes('poster') || lower.includes('spray') ||
+                                lower.includes('custom/') || lower.includes('graffiti');
+        if (isDecalOrPoster) {
+            tags.push('Custom Decal/Poster');
+            if (score < 50) {
+                score = 50;
+                reasons.push('Decal/Poster/Custom spray (frequent moderation vector)');
+            }
+        }
+
+        let level = 'CLEAN';
+        let reason = 'Standard environmental texture. Safe for Roblox cloud upload.';
+        if (score >= 80) {
+            level = 'HIGH';
+            reason = `HIGH RISK of Roblox moderation: ${reasons.join(', ')}. Strongly recommend deselecting.`;
+        } else if (score >= 50) {
+            level = 'MEDIUM';
+            reason = `Elevated risk: ${reasons.join(', ')}. Review image before uploading.`;
+        }
+
+        return {
+            level,
+            score,
+            tags,
+            reason,
+            isRisky: score >= 50
+        };
+    }
+
+    function updatePreviewPaneIncludeButton(t) {
+        if (!btnTexToggleInclude || !t) return;
+        const isExcluded = excludedTexturesSet.has(t.path);
+        if (isExcluded) {
+            btnTexToggleInclude.innerText = 'INCLUDE IN CLOUD UPLOAD';
+            btnTexToggleInclude.classList.add('btn-gold');
+        } else {
+            btnTexToggleInclude.innerText = 'EXCLUDE FROM CLOUD UPLOAD';
+            btnTexToggleInclude.classList.remove('btn-gold');
+        }
+    }
+
+    async function loadTexturePreview(t) {
+        selectedTextureForPreview = t;
+        if (!t) return;
+
+        if (texPreviewCategory) texPreviewCategory.innerText = t.type || 'Material';
+        if (texPreviewPath) {
+            texPreviewPath.innerText = t.path;
+            texPreviewPath.title = `Click to copy: ${t.path}`;
+        }
+
+        // Update risk card
+        if (!t.risk) t.risk = assessTextureRisk(t.path);
+        if (texPreviewRiskBadge) {
+            if (t.risk.level === 'HIGH') {
+                texPreviewRiskBadge.className = 'badge-risk-high';
+                texPreviewRiskBadge.innerText = 'HIGH RISK (BAN HAZARD)';
+            } else if (t.risk.level === 'MEDIUM') {
+                texPreviewRiskBadge.className = 'badge-risk-medium';
+                texPreviewRiskBadge.innerText = 'MEDIUM RISK (WARNING)';
+            } else {
+                texPreviewRiskBadge.className = 'badge-risk-clean';
+                texPreviewRiskBadge.innerText = 'CLEAN (LOW RISK)';
+            }
+        }
+        if (texPreviewRiskReason) {
+            texPreviewRiskReason.innerText = t.risk.reason;
+        }
+
+        updatePreviewPaneIncludeButton(t);
+
+        // Check cache
+        if (texturePreviewCache.has(t.path)) {
+            const cached = texturePreviewCache.get(t.path);
+            if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
+            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+            if (texPreviewImg) {
+                texPreviewImg.src = cached.dataUrl || `file://${cached.path.replace(/\\/g, '/')}`;
+                texPreviewImg.classList.remove('hidden');
+            }
+            if (texPreviewResolution) texPreviewResolution.innerText = `Res: ${cached.width} x ${cached.height}`;
+            if (texPreviewFormat) texPreviewFormat.innerText = `Fmt: ${cached.format}`;
+            return;
+        }
+
+        // Decode via engine
+        const gameDir = gameDirInput.value.trim();
+        if (!gameDir) {
+            if (texPreviewPlaceholder) {
+                texPreviewPlaceholder.classList.remove('hidden');
+                texPreviewPlaceholder.innerHTML = '<div style="font-size:11px; color:var(--gs-text-dim);">No game directory set</div>';
+            }
+            return;
+        }
+
+        if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
+        if (texPreviewImg) texPreviewImg.classList.add('hidden');
+        if (texPreviewLoading) texPreviewLoading.classList.remove('hidden');
+        if (texPreviewResolution) texPreviewResolution.innerText = 'Res: loading...';
+        if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: loading...';
+
+        try {
+            const res = await window.api.previewTexture(gameDir, t.path);
+            if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
+                if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+                if (res.success && res.data) {
+                    texturePreviewCache.set(t.path, res.data);
+                    if (texPreviewImg) {
+                        texPreviewImg.src = res.data.dataUrl || `file://${res.data.path.replace(/\\/g, '/')}`;
+                        texPreviewImg.classList.remove('hidden');
+                    }
+                    if (texPreviewResolution) texPreviewResolution.innerText = `Res: ${res.data.width} x ${res.data.height}`;
+                    if (texPreviewFormat) texPreviewFormat.innerText = `Fmt: ${res.data.format}`;
+                } else {
+                    if (texPreviewPlaceholder) {
+                        texPreviewPlaceholder.classList.remove('hidden');
+                        texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-text-dim); text-align:center;">Preview unavailable<br>(${res.error || 'VTF not in VPK'})</div>`;
+                    }
+                    if (texPreviewResolution) texPreviewResolution.innerText = 'Res: --';
+                    if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: --';
+                }
+            }
+        } catch (err) {
+            if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
+                if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+                if (texPreviewPlaceholder) {
+                    texPreviewPlaceholder.classList.remove('hidden');
+                    texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-red);">Error: ${err.message}</div>`;
+                }
+            }
+        }
+    }
+
+    function updateTextureSelectionCounters() {
+        if (!currentInspection || !currentInspection.textures) return;
+        const total = currentInspection.textures.length;
+        const excluded = currentInspection.textures.filter(t => excludedTexturesSet.has(t.path)).length;
+        const selected = total - excluded;
+        const risky = currentInspection.textures.filter(t => t.risk && t.risk.isRisky).length;
+
+        if (texRiskyBtnCount) texRiskyBtnCount.innerText = risky;
+        if (texPillAllCount) texPillAllCount.innerText = total;
+        if (texPillRiskyCount) texPillRiskyCount.innerText = risky;
+        if (texPillExcludedCount) texPillExcludedCount.innerText = excluded;
+        if (texSelectedCount) texSelectedCount.innerText = selected;
+        if (texTotalCount) texTotalCount.innerText = total;
+        if (texExcludedCount) {
+            texExcludedCount.innerText = `${excluded} excluded`;
+            texExcludedCount.style.color = excluded > 0 ? 'var(--gs-yellow)' : 'var(--gs-text-dim)';
+        }
+
+        if (texMasterCheckbox) {
+            if (excluded === 0) {
+                texMasterCheckbox.checked = true;
+                texMasterCheckbox.indeterminate = false;
+            } else if (excluded === total) {
+                texMasterCheckbox.checked = false;
+                texMasterCheckbox.indeterminate = false;
+            } else {
+                texMasterCheckbox.checked = false;
+                texMasterCheckbox.indeterminate = true;
+            }
+        }
     }
 
     function renderFilteredInspectViews() {
@@ -479,30 +790,81 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        // 2. Textures
+        // 2. Textures (Selector & Inspector)
+        currentInspection.textures.forEach(t => {
+            if (!t.risk) t.risk = assessTextureRisk(t.path);
+        });
+
+        updateTextureSelectionCounters();
+
         const filteredTextures = currentInspection.textures.filter(t => {
+            if (activeTexPillFilter === 'risky' && !t.risk.isRisky) return false;
+            if (activeTexPillFilter === 'excluded' && !excludedTexturesSet.has(t.path)) return false;
+
             if (!filter) return true;
             return (t.path && t.path.toLowerCase().includes(filter)) ||
-                   (t.type && t.type.toLowerCase().includes(filter));
+                   (t.type && t.type.toLowerCase().includes(filter)) ||
+                   (t.risk && t.risk.level && t.risk.level.toLowerCase().includes(filter)) ||
+                   (t.risk && t.risk.tags && t.risk.tags.some(tag => tag.toLowerCase().includes(filter)));
         });
 
         inspectTexturesTbody.innerHTML = '';
         if (filteredTextures.length === 0) {
-            inspectTexturesTbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:15px; color:var(--gs-text-dim);">No textures matching filter.</td></tr>';
+            inspectTexturesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--gs-text-dim);">No textures matching current filter.</td></tr>';
         } else {
             filteredTextures.forEach(t => {
+                const isExcluded = excludedTexturesSet.has(t.path);
                 const tr = document.createElement('tr');
+                if (isExcluded) tr.classList.add('row-excluded');
+                if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
+                    tr.classList.add('selected');
+                }
+
+                let riskBadge = '<span class="badge-risk-clean">CLEAN</span>';
+                if (t.risk.level === 'HIGH') {
+                    riskBadge = `<span class="badge-risk-high" title="${t.risk.reason}">HIGH RISK</span>`;
+                } else if (t.risk.level === 'MEDIUM') {
+                    riskBadge = `<span class="badge-risk-medium" title="${t.risk.reason}">MEDIUM</span>`;
+                }
+
                 tr.innerHTML = `
+                    <td style="text-align:center;">
+                        <input type="checkbox" class="tex-row-cb" ${!isExcluded ? 'checked' : ''} data-path="${t.path}" title="Include/exclude from cloud upload">
+                    </td>
+                    <td>${riskBadge}</td>
                     <td><span class="badge-tag">${t.type}</span></td>
-                    <td><strong>${t.path}</strong></td>
+                    <td><strong style="color:var(--gs-text-highlight);">${t.path}</strong></td>
                 `;
+
+                const cb = tr.querySelector('.tex-row-cb');
+                cb.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (cb.checked) {
+                        excludedTexturesSet.delete(t.path);
+                        tr.classList.remove('row-excluded');
+                    } else {
+                        excludedTexturesSet.add(t.path);
+                        tr.classList.add('row-excluded');
+                    }
+                    updateTextureSelectionCounters();
+                    if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
+                        updatePreviewPaneIncludeButton(t);
+                    }
+                });
+
                 tr.addEventListener('click', () => {
                     inspectTexturesTbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
                     tr.classList.add('selected');
-                    inspectFooterInfo.innerText = `Material: ${t.path} | Category: ${t.type}`;
+                    loadTexturePreview(t);
                 });
+
                 inspectTexturesTbody.appendChild(tr);
             });
+
+            // Auto-load preview of first texture if none active
+            if (!selectedTextureForPreview && filteredTextures.length > 0) {
+                loadTexturePreview(filteredTextures[0]);
+            }
         }
 
         // 3. Entities
@@ -569,9 +931,141 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
+    // Texture Toolbar & Selector Listeners
+    btnTexSelectAll?.addEventListener('click', () => {
+        excludedTexturesSet.clear();
+        renderFilteredInspectViews();
+        logToConsole('Texture Selector: Selected all textures for cloud upload.', 'info');
+    });
+
+    btnTexDeselectAll?.addEventListener('click', () => {
+        if (!currentInspection || !currentInspection.textures) return;
+        currentInspection.textures.forEach(t => excludedTexturesSet.add(t.path));
+        renderFilteredInspectViews();
+        logToConsole(`Texture Selector: Deselected all ${currentInspection.textures.length} textures.`, 'warning');
+    });
+
+    btnTexDeselectRisky?.addEventListener('click', () => {
+        if (!currentInspection || !currentInspection.textures) return;
+        let count = 0;
+        currentInspection.textures.forEach(t => {
+            if (!t.risk) t.risk = assessTextureRisk(t.path);
+            if (t.risk.isRisky) {
+                excludedTexturesSet.add(t.path);
+                count++;
+            }
+        });
+        renderFilteredInspectViews();
+        logToConsole(`Cloud Protection: Deselected ${count} risky textures (Nudity/Gore/Alcohol/Decals) to protect account.`, 'success');
+        inspectFooterInfo.innerHTML = `<span style="color:#b4dfb4;">Deselected ${count} risky textures. Safe mode active!</span>`;
+    });
+
+    btnTexInvert?.addEventListener('click', () => {
+        if (!currentInspection || !currentInspection.textures) return;
+        currentInspection.textures.forEach(t => {
+            if (excludedTexturesSet.has(t.path)) {
+                excludedTexturesSet.delete(t.path);
+            } else {
+                excludedTexturesSet.add(t.path);
+            }
+        });
+        renderFilteredInspectViews();
+        logToConsole('Texture Selector: Inverted texture selection.', 'info');
+    });
+
+    btnTexToggleInclude?.addEventListener('click', () => {
+        if (!selectedTextureForPreview) return;
+        const p = selectedTextureForPreview.path;
+        if (excludedTexturesSet.has(p)) {
+            excludedTexturesSet.delete(p);
+        } else {
+            excludedTexturesSet.add(p);
+        }
+        renderFilteredInspectViews();
+        updatePreviewPaneIncludeButton(selectedTextureForPreview);
+    });
+
+    texMasterCheckbox?.addEventListener('click', () => {
+        if (!currentInspection || !currentInspection.textures) return;
+        const checkAll = texMasterCheckbox.checked;
+        const filter = (inspectFilterInput.value || '').trim().toLowerCase();
+        const visible = currentInspection.textures.filter(t => {
+            if (activeTexPillFilter === 'risky' && !t.risk.isRisky) return false;
+            if (activeTexPillFilter === 'excluded' && !excludedTexturesSet.has(t.path)) return false;
+            if (!filter) return true;
+            return (t.path && t.path.toLowerCase().includes(filter)) ||
+                   (t.type && t.type.toLowerCase().includes(filter));
+        });
+
+        visible.forEach(t => {
+            if (checkAll) {
+                excludedTexturesSet.delete(t.path);
+            } else {
+                excludedTexturesSet.add(t.path);
+            }
+        });
+        renderFilteredInspectViews();
+    });
+
+    texFilterPills?.forEach(pill => {
+        pill.addEventListener('click', () => {
+            texFilterPills.forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            activeTexPillFilter = pill.getAttribute('data-tex-filter') || 'all';
+            renderFilteredInspectViews();
+        });
+    });
+
+    texPreviewPath?.addEventListener('click', () => {
+        if (selectedTextureForPreview && selectedTextureForPreview.path) {
+            navigator.clipboard.writeText(selectedTextureForPreview.path).then(() => {
+                logToConsole(`Copied to clipboard: ${selectedTextureForPreview.path}`, 'info');
+            });
+        }
+    });
+
+    function showModerationModal(assetPath, reason) {
+        if (moderationFlaggedAsset) {
+            moderationFlaggedAsset.innerText = assetPath || 'Unknown asset';
+        }
+        if (modalModerationAlert) {
+            modalModerationAlert.classList.remove('hidden');
+        }
+    }
+
+    function closeModerationModal() {
+        if (modalModerationAlert) {
+            modalModerationAlert.classList.add('hidden');
+        }
+    }
+
+    if (btnCloseModerationModal) btnCloseModerationModal.addEventListener('click', closeModerationModal);
+    if (btnModerationDismiss) btnModerationDismiss.addEventListener('click', closeModerationModal);
+    if (btnModerationOpenRoblox) {
+        btnModerationOpenRoblox.addEventListener('click', () => {
+            if (window.api && window.api.openUrl) {
+                window.api.openUrl('https://www.roblox.com');
+            } else {
+                window.open('https://www.roblox.com', '_blank');
+            }
+        });
+    }
+    if (btnModerationResume) {
+        btnModerationResume.addEventListener('click', () => {
+            closeModerationModal();
+            if (!isConverting) {
+                btnConvertAction.click();
+            }
+        });
+    }
+
     window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modalMapInspect.classList.contains('hidden')) {
-            closeInspector();
+        if (e.key === 'Escape') {
+            if (modalMapInspect && !modalMapInspect.classList.contains('hidden')) {
+                closeInspector();
+            } else if (modalModerationAlert && !modalModerationAlert.classList.contains('hidden')) {
+                closeModerationModal();
+            }
         }
     });
 
@@ -659,13 +1153,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             robloxApiKey: apiKeyInput.value.trim(),
             robloxCreatorType: creatorTypeSelect.value,
             robloxCreatorId: creatorIdInput.value.trim(),
-            customTexturesDir: customTexturesInput.value.trim()
+            customTexturesDir: customTexturesInput.value.trim(),
+            excludedTextures: Array.from(excludedTexturesSet)
         };
 
         // Switch UI to converting state
         isConverting = true;
+        isModeratedPaused = false;
         conversionHasErrors = false;
         btnConvertAction.disabled = true;
+        btnConvertAction.classList.remove('btn-resume-glow');
+        btnConvertAction.innerText = 'START CONVERSION';
         btnOpenStudio.disabled = true;
         btnCancel.style.display = 'inline-block';
         progressBar.style.width = '0%';
@@ -676,6 +1174,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         logToConsole(`Target: ${mapName ? 'Map ' + mapName : (modelName ? 'Model ' + modelName : 'VTF ' + vtfName)}`, 'info');
         logToConsole(`Game Folder: ${gameDir}`, 'info');
         logToConsole(`Server-Side Uploads: Textures=${job.uploadAssets}, Meshes=${job.uploadMeshes}`, 'roblox');
+        if (job.excludedTextures && job.excludedTextures.length > 0) {
+            logToConsole(`Cloud Protection: ${job.excludedTextures.length} textures excluded from cloud upload.`, 'warning');
+        }
         logToConsole(`=======================================================`, 'cmd');
 
         const launchResult = await window.api.startConversion(job);
@@ -735,6 +1236,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 break;
             }
 
+            case 'moderation_blocked': {
+                isModeratedPaused = true;
+                logToConsole('====================================================', 'error');
+                logToConsole(' [!] ROBLOX ACCOUNT MODERATED - UPLOADS PAUSED', 'error');
+                if (evt.data && evt.data.asset) {
+                    logToConsole(` Flagged Asset: ${evt.data.asset}`, 'warning');
+                }
+                logToConsole(' Uploads stopped immediately to prevent asset loss.', 'warning');
+                logToConsole(' Acknowledge warning at https://www.roblox.com, then click RESUME', 'warning');
+                logToConsole('====================================================', 'error');
+                showModerationModal(evt.data?.asset, evt.data?.reason || evt.message);
+                break;
+            }
+
             case 'done': {
                 progressBar.style.width = '100%';
                 if (conversionHasErrors) {
@@ -773,11 +1288,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         isConverting = false;
         btnConvertAction.disabled = false;
         btnCancel.style.display = 'none';
-        if (data.code === 0 && !conversionHasErrors) {
+
+        if (isModeratedPaused || data.code === 2) {
+            statusText.innerText = 'PAUSED: Account moderated. Review warning on Roblox, then click RESUME CONVERSION.';
+            btnConvertAction.innerText = 'RESUME CONVERSION';
+            btnConvertAction.classList.add('btn-resume-glow');
+            logToConsole(`Engine paused cleanly (Exit code: ${data.code}). Upload cache is preserved; resume anytime.`, 'warning');
+        } else if (data.code === 0 && !conversionHasErrors) {
             statusText.innerText = 'Conversion complete. Ready.';
+            btnConvertAction.innerText = 'START CONVERSION';
+            btnConvertAction.classList.remove('btn-resume-glow');
         } else {
             statusText.innerText = `Conversion failed (Exit code: ${data.code}). Check console log.`;
             logToConsole(`Engine process finished with code ${data.code}${conversionHasErrors ? ' (with errors)' : ''}`, 'error');
+            btnConvertAction.innerText = 'START CONVERSION';
+            btnConvertAction.classList.remove('btn-resume-glow');
         }
     });
 
@@ -813,12 +1338,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 logToConsole('Available GoldSource Console Commands:', 'cmd');
                 logToConsole('  help         - Displays this list of commands', 'info');
                 logToConsole('  status       - Shows engine status and current targets', 'info');
+                logToConsole('  resume       - Resumes paused conversion after moderation', 'info');
                 logToConsole('  validate     - Tests Roblox Open Cloud API credentials', 'info');
                 logToConsole('  steam        - Rescans local Steam libraries for games', 'info');
                 logToConsole('  cache        - Displays asset upload deduplication statistics', 'info');
                 logToConsole('  clearcache   - Clears upload cache file', 'info');
                 logToConsole('  export       - Opens output folder in Windows Explorer', 'info');
                 logToConsole('  clear        - Clears the console output log', 'info');
+                break;
+
+            case 'resume':
+                if (isConverting) {
+                    logToConsole('Conversion is already running.', 'warning');
+                } else {
+                    logToConsole('Resuming conversion process...', 'info');
+                    btnConvertAction.click();
+                }
                 break;
 
             case 'clear':

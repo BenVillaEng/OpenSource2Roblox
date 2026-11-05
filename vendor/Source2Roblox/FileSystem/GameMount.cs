@@ -355,7 +355,7 @@ namespace Source2Roblox.FileSystem
             catch {}
         }
 
-        public void BindZipArchive(string name, ZipArchive archive)
+        public void BindZipArchive(string name, ZipArchive archive, byte[] rawArchiveData = null)
         {
             if (Mounts.ContainsKey(name))
             {
@@ -365,11 +365,14 @@ namespace Source2Roblox.FileSystem
 
             Console.WriteLine("Warming up PakFile, this may take a moment...");
             
-            // Fetch a dummy entry to make the archive load.
-            archive.GetEntry("");
+            // Fetch a dummy entry to make the archive load if ZipArchive is present.
+            if (archive != null)
+            {
+                try { archive.GetEntry(""); } catch {}
+            }
 
             Console.WriteLine("PakFile mounted!");
-            Mounts[name] = new VPKFile(archive);
+            Mounts[name] = new VPKFile(archive, rawArchiveData);
             lock (routingLock)
             {
                 _pathToVpk.Clear();
@@ -377,10 +380,10 @@ namespace Source2Roblox.FileSystem
             }
         }
 
-        public static void BindZipArchive(string name, ZipArchive archive, GameMount game = null)
+        public static void BindZipArchive(string name, ZipArchive archive, byte[] rawArchiveData = null, GameMount game = null)
         {
             game = game ?? Program.GameMount;
-            game.BindZipArchive(name, archive);
+            game?.BindZipArchive(name, archive, rawArchiveData);
         }
 
         private readonly object routingLock = new object();

@@ -134,8 +134,18 @@ namespace Source2Roblox.World
             if (lump.Type == LumpType.PakFile)
             {
                 var buffer = ReadBuffer(bspReader, offset, length);
-                var archive = new ZipArchive(buffer);
-                GameMount.BindZipArchive(Name, archive, Game);
+                byte[] rawData = buffer.ToArray();
+                ZipArchive archive = null;
+                try
+                {
+                    archive = new ZipArchive(buffer);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Notice: PakFile ZipArchive initialization: {ex.Message}. Falling back to internal zip parser.");
+                }
+
+                GameMount.BindZipArchive(Name, archive, rawData, Game);
                 return;
             }
 
@@ -171,7 +181,19 @@ namespace Source2Roblox.World
                     }
                     case LumpType.Faces:
                     {
-                        reader.ReadToEnd(Faces);
+                        lock (Faces)
+                        {
+                            reader.ReadToEnd(Faces);
+                        }
+                        break;
+                    }
+                    case LumpType.FacesHDR:
+                    {
+                        lock (Faces)
+                        {
+                            if (Faces.Count == 0)
+                                reader.ReadToEnd(Faces);
+                        }
                         break;
                     }
                     case LumpType.Edges:
@@ -314,8 +336,18 @@ namespace Source2Roblox.World
             {
                 MemoryStream pakBuffer;
                 lock (_lumpReadLock) { pakBuffer = ReadBuffer(bspReader, offset, length); }
-                var archive = new ZipArchive(pakBuffer);
-                GameMount.BindZipArchive(Name, archive, Game);
+                byte[] rawData = pakBuffer.ToArray();
+                ZipArchive archive = null;
+                try
+                {
+                    archive = new ZipArchive(pakBuffer);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Notice: PakFile ZipArchive initialization: {ex.Message}. Falling back to internal zip parser.");
+                }
+
+                GameMount.BindZipArchive(Name, archive, rawData, Game);
                 return;
             }
 
@@ -342,7 +374,17 @@ namespace Source2Roblox.World
                         reader.ReadToEnd(TexInfo);
                         break;
                     case LumpType.Faces:
-                        reader.ReadToEnd(Faces);
+                        lock (Faces)
+                        {
+                            reader.ReadToEnd(Faces);
+                        }
+                        break;
+                    case LumpType.FacesHDR:
+                        lock (Faces)
+                        {
+                            if (Faces.Count == 0)
+                                reader.ReadToEnd(Faces);
+                        }
                         break;
                     case LumpType.Edges:
                         reader.ReadToEnd(Edges, reader.ReadUInt16);

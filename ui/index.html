@@ -389,19 +389,92 @@
                         </div>
                     </div>
 
-                    <!-- Panel 2: Textures Table -->
+                    <!-- Panel 2: Textures & Materials Selector & Viewer -->
                     <div class="gs-inspect-panel" id="subtab-textures">
-                        <div class="gs-listbox inspect-listbox">
-                            <table class="gs-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 22%;">CATEGORY</th>
-                                        <th style="width: 78%;">MATERIAL / TEXTURE PATH</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="inspect-textures-tbody">
-                                </tbody>
-                            </table>
+                        <!-- Texture Control Toolbar -->
+                        <div class="gs-tex-toolbar">
+                            <div class="gs-tex-btn-group">
+                                <button class="gs-btn gs-btn-sm" id="btn-tex-select-all" title="Select all textures for upload">Select All</button>
+                                <button class="gs-btn gs-btn-sm" id="btn-tex-deselect-all" title="Deselect all textures">Deselect All</button>
+                                <button class="gs-btn gs-btn-sm btn-danger-glow" id="btn-tex-deselect-risky" title="Automatically deselect all textures flagged with risk of Roblox moderation">
+                                    <span style="color:#ff8888; font-weight:bold;">[!]</span> Deselect All Risky (<span id="tex-risky-btn-count">0</span>)
+                                </button>
+                                <button class="gs-btn gs-btn-sm" id="btn-tex-invert" title="Invert current texture selection">Invert</button>
+                            </div>
+                            <div class="gs-tex-filter-pills">
+                                <button class="tex-filter-pill active" data-tex-filter="all">All (<span id="tex-pill-all-count">0</span>)</button>
+                                <button class="tex-filter-pill pill-warning" data-tex-filter="risky">Risky (<span id="tex-pill-risky-count">0</span>)</button>
+                                <button class="tex-filter-pill pill-excluded" data-tex-filter="excluded">Excluded (<span id="tex-pill-excluded-count">0</span>)</button>
+                            </div>
+                            <div class="gs-tex-status-summary">
+                                <span id="tex-selected-count">0</span> / <span id="tex-total-count">0</span> selected (<span id="tex-excluded-count" style="color:var(--gs-yellow);">0 excluded</span>)
+                            </div>
+                        </div>
+
+                        <!-- Split View: Table on Left, Live Preview & Risk Card on Right -->
+                        <div class="gs-tex-split-layout">
+                            <div class="gs-listbox gs-tex-table-container">
+                                <table class="gs-table" id="table-textures-list">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 7%; text-align: center;">
+                                                <input type="checkbox" id="tex-master-checkbox" title="Toggle Select All" checked>
+                                            </th>
+                                            <th style="width: 23%;">RISK LEVEL</th>
+                                            <th style="width: 18%;">CATEGORY</th>
+                                            <th style="width: 52%;">MATERIAL / TEXTURE PATH</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inspect-textures-tbody">
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Right-Side Texture Preview & Risk Inspector Pane -->
+                            <div class="gs-tex-preview-pane" id="tex-preview-pane">
+                                <div class="gs-tex-preview-header">
+                                    <div class="gs-tex-preview-title">Texture Inspector & Preview</div>
+                                    <span class="badge-tag" id="tex-preview-category">World Texture</span>
+                                </div>
+
+                                <!-- Image Preview Canvas / Box -->
+                                <div class="gs-tex-preview-img-container" id="tex-preview-img-container">
+                                    <div class="gs-tex-preview-placeholder" id="tex-preview-placeholder">
+                                        <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: var(--gs-text-dim);">[NO PREVIEW SELECTED]</div>
+                                        <div style="font-size: 11px; text-align: center;">Select a texture row to view details & live VTF preview</div>
+                                    </div>
+                                    <div class="gs-tex-preview-loading hidden" id="tex-preview-loading">
+                                        <div class="gs-spinner-gold"></div>
+                                        <div style="font-size: 11px; margin-top: 6px; color: var(--gs-yellow);">Decoding VTF via Engine...</div>
+                                    </div>
+                                    <img id="tex-preview-img" class="gs-tex-preview-img hidden" alt="Texture Preview">
+                                </div>
+
+                                <div class="gs-tex-preview-meta" id="tex-preview-meta">
+                                    <span id="tex-preview-resolution">Res: -- x --</span>
+                                    <span id="tex-preview-format">Fmt: --</span>
+                                </div>
+
+                                <!-- Texture Name & Path Box -->
+                                <div class="gs-tex-path-box" id="tex-preview-path" title="Material path">materials/...</div>
+
+                                <!-- Risk Assessment Card -->
+                                <div class="gs-tex-risk-card" id="tex-preview-risk-card">
+                                    <div class="gs-tex-risk-header">
+                                        <span id="tex-preview-risk-badge" class="badge-risk-clean">CLEAN (LOW RISK)</span>
+                                    </div>
+                                    <div class="gs-tex-risk-reason" id="tex-preview-risk-reason">
+                                        No suspicious keywords or content tags detected. Safe for Roblox cloud upload.
+                                    </div>
+                                </div>
+
+                                <!-- Actions Inside Pane -->
+                                <div class="gs-tex-preview-actions">
+                                    <button class="gs-btn btn-gold gs-btn-sm" id="btn-tex-toggle-include" style="width: 100%;">
+                                        EXCLUDE FROM UPLOAD
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -431,6 +504,56 @@
                 <div class="gs-modal-footer-actions">
                     <button class="gs-btn btn-gold" id="btn-inspect-convert-now">CONVERT THIS MAP NOW</button>
                     <button class="gs-btn" id="btn-inspect-close">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Roblox Moderation Alert (GoldSource VGUI Style) -->
+    <div id="modal-moderation-alert" class="gs-modal-backdrop hidden">
+        <div class="gs-modal-window" style="width: 580px; max-width: 90vw;">
+            <div class="gs-modal-titlebar" style="background: #5a2e2e; border-bottom: 2px solid #8c3b3b;">
+                <div class="gs-modal-title" style="color: #ffcccc;">
+                    <span class="gs-lambda" style="color: #ff9999;">!</span>
+                    <span>Roblox Account Moderated - Uploads Paused</span>
+                </div>
+                <button class="gs-win-btn" id="btn-close-moderation-modal" title="Close">X</button>
+            </div>
+
+            <div class="gs-modal-body" style="padding: 16px; font-size: 13px; line-height: 1.5;">
+                <div style="background: rgba(180, 40, 40, 0.15); border: 1px solid #8c3b3b; padding: 12px; margin-bottom: 14px; border-radius: 2px;">
+                    <strong style="color: #ffaaaa; font-size: 14px;">Upload process was halted immediately.</strong>
+                    <div style="color: #dfdfdf; margin-top: 6px;">
+                        Roblox rejected an asset with: <code style="color: #ffd27d; background: #282828; padding: 2px 5px;">403 Forbidden: "User is moderated"</code>.
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <strong>Flagged Asset:</strong>
+                    <div id="moderation-flagged-asset" style="word-break: break-all; color: #ffd27d; background: #222; padding: 6px 8px; border: 1px solid #444; margin-top: 4px; font-family: monospace;">materials/...</div>
+                </div>
+
+                <div style="color: #ccc; margin-bottom: 14px;">
+                    <p style="margin: 0 0 6px 0;"><strong>Why was it paused?</strong> Continuing would have caused all remaining assets to fail and become missing in your Roblox place.</p>
+                    <p style="margin: 0;"><strong>Good news:</strong> All assets uploaded prior to this alert are safely stored in <code style="color: #8bc34a;">upload_cache.json</code>. You won't have to re-upload them!</p>
+                </div>
+
+                <div style="background: #2b352b; border: 1px solid #4f684f; padding: 10px; font-size: 12px; color: #c4d8c4;">
+                    <strong>How to resume:</strong>
+                    <ol style="margin: 4px 0 0 18px; padding: 0;">
+                        <li>Click <strong>OPEN ROBLOX.COM</strong> below to review and acknowledge the warning on your account.</li>
+                        <li>Click <strong>RESUME UPLOAD NOW</strong> to continue uploading the remaining assets seamlessly.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="gs-modal-footer">
+                <div class="gs-modal-footer-actions" style="width: 100%; display: flex; justify-content: space-between;">
+                    <button class="gs-btn" id="btn-moderation-open-roblox" style="border-color: #5c7e9c; color: #bfe0ff;">OPEN ROBLOX.COM</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="gs-btn btn-gold" id="btn-moderation-resume">RESUME UPLOAD NOW</button>
+                        <button class="gs-btn" id="btn-moderation-dismiss">Dismiss</button>
+                    </div>
                 </div>
             </div>
         </div>
