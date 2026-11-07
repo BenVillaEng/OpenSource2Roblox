@@ -600,6 +600,10 @@ body {
     backdrop-filter: blur(1.5px);
 }
 
+.hidden {
+    display: none !important;
+}
+
 .gs-modal-backdrop.hidden {
     display: none !important;
 }
@@ -1051,6 +1055,12 @@ body.crt-phosphor-mode::after {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+}
+
+.gs-tex-preview-loading.hidden,
+.gs-tex-preview-placeholder.hidden,
+.gs-tex-preview-img.hidden {
+    display: none !important;
 }
 
 .gs-tex-preview-meta {

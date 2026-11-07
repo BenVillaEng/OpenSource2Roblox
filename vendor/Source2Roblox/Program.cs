@@ -318,7 +318,7 @@ namespace Source2Roblox
 
                 if (!string.IsNullOrWhiteSpace(previewTexture))
                 {
-                    bool ok = GenerateTexturePreview(previewTexture, outputRoot);
+                    bool ok = GenerateTexturePreview(previewTexture, outputRoot, mapName);
                     return ok ? 0 : 1;
                 }
 
@@ -854,7 +854,24 @@ namespace Source2Roblox
             public int Score { get; set; } = 0;
             public List<string> Tags { get; set; } = new List<string>();
             public string Reason { get; set; } = "No known risks detected.";
-            public bool IsRisky => Score >= 50;
+            public bool IsRisky => Score >= 70;
+        }
+
+        private static bool HasWord(string text, string word)
+        {
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(word))
+                return false;
+
+            int index = 0;
+            while ((index = text.IndexOf(word, index, StringComparison.OrdinalIgnoreCase)) != -1)
+            {
+                bool startOk = (index == 0) || !char.IsLetterOrDigit(text[index - 1]);
+                bool endOk = (index + word.Length == text.Length) || !char.IsLetterOrDigit(text[index + word.Length]);
+                if (startOk && endOk)
+                    return true;
+                index += word.Length;
+            }
+            return false;
         }
 
         public static TextureRiskResult AssessTextureRisk(string path)
@@ -866,43 +883,47 @@ namespace Source2Roblox
             string lower = path.ToLowerInvariant().Replace('\\', '/');
 
             // 1. Critical: Nudity / Soft NSFW / Pinup / Adult Content
-            string[] nudityKeywords = new[]
+            string[] explicitNudity = new[]
             {
-                "pinup", "girl", "nude", "naked", "playboy", "hentai", "anime_girl", "sexy", "boob",
-                "tits", "bikini", "lingerie", "swimsuit", "cleavage", "ass", "butt", "penis", "dick",
-                "cock", "vagina", "pussy", "strip", "stripper", "erotic", "porn", "xxx", "waifu",
-                "poster_girl", "girl_poster", "woman_poster", "babes", "adult", "bra", "panties",
-                "underwear", "nsfw", "fetish", "lewd", "camgirl", "sensual", "nudity"
+                "pinup", "nude", "naked", "playboy", "hentai", "anime_girl", "sexy", "boob",
+                "bikini", "lingerie", "swimsuit", "cleavage", "vagina", "pussy",
+                "stripper", "erotic", "porn", "xxx", "waifu", "poster_girl", "girl_poster",
+                "woman_poster", "babes", "panties", "underwear", "nsfw", "fetish", "lewd",
+                "camgirl", "sensual", "nudity"
             };
 
-            // 2. High: Gore / Flesh / Blood / Corpses
+            // Short words requiring strict word-boundary matching to prevent false positives
+            string[] boundaryNudity = new[] { "ass", "butt", "cock", "dick", "tit", "tits", "bra" };
+
+            // 2. High: Gore / Extreme Violence / Corpses
             string[] goreKeywords = new[]
             {
-                "gore", "blood", "bloody", "guts", "flesh", "gib", "gibs", "corpse", "dead_body",
+                "gore", "bloody", "guts", "flesh", "gib", "gibs", "corpse", "dead_body",
                 "deadbody", "mutilat", "dismember", "severed", "wound", "entrails", "viscera",
-                "slaughter", "decapitat", "splatter", "murder", "carnage", "decap", "hanging_body",
+                "slaughter", "decapitat", "splatter", "murder", "carnage", "hanging_body",
                 "charred_corpse", "severed_limb"
             };
 
-            // 3. Medium/High: Alcohol / Drugs / Tobacco / Controlled Substances
+            // 3. Medium/High: Alcohol / Drugs / Tobacco
             string[] drugKeywords = new[]
             {
                 "beer", "liquor", "wine", "vodka", "whiskey", "whisky", "rum", "tequila", "alcohol",
-                "bar_sign", "pub_sign", "cigar", "cigarette", "smoke", "tobacco", "weed", "cannabis",
-                "marijuana", "joint", "bong", "drug", "pills", "syringe", "needle", "cocaine", "meth",
-                "heroin", "pharmacy", "drunk", "bottle_labels", "budweiser", "heineken", "corona",
-                "jackdaniels", "ashtray", "smokes", "carton", "pack_smokes", "snuff", "hookah", "vape"
+                "bar_sign", "pub_sign", "cigar", "cigarette", "tobacco", "cannabis",
+                "marijuana", "joint", "bong", "pills", "syringe", "cocaine", "meth",
+                "heroin", "budweiser", "heineken", "corona", "jackdaniels", "ashtray",
+                "pack_smokes", "hookah", "vape"
             };
 
             // 4. Critical: Hate Speech / Extremist
             string[] hateKeywords = new[]
             {
-                "nazi", "swastika", "hitler", "ss_", "terror", "kkk", "fascist", "aryan"
+                "nazi", "swastika", "hitler", "ss_", "terrorist", "kkk", "fascist", "aryan"
             };
 
             var matchedReasons = new List<string>();
 
-            foreach (var kw in nudityKeywords)
+            // Check explicit nudity keywords
+            foreach (var kw in explicitNudity)
             {
                 if (lower.Contains(kw))
                 {
@@ -913,6 +934,22 @@ namespace Source2Roblox
                 }
             }
 
+            // Check boundary-sensitive nudity keywords
+            if (result.Score < 95)
+            {
+                foreach (var kw in boundaryNudity)
+                {
+                    if (HasWord(lower, kw))
+                    {
+                        result.Tags.Add("Nudity/Pinup");
+                        matchedReasons.Add($"Pinup/Adult keyword ('{kw}')");
+                        result.Score = Math.Max(result.Score, 95);
+                        break;
+                    }
+                }
+            }
+
+            // Check gore keywords
             foreach (var kw in goreKeywords)
             {
                 if (lower.Contains(kw))
@@ -924,6 +961,15 @@ namespace Source2Roblox
                 }
             }
 
+            // Check blood with boundary / exclusion check (e.g. bloodhound)
+            if (result.Score < 85 && lower.Contains("blood") && !lower.Contains("bloodhound"))
+            {
+                result.Tags.Add("Gore/Blood");
+                matchedReasons.Add("Blood keyword");
+                result.Score = Math.Max(result.Score, 85);
+            }
+
+            // Check drug keywords
             foreach (var kw in drugKeywords)
             {
                 if (lower.Contains(kw))
@@ -935,6 +981,23 @@ namespace Source2Roblox
                 }
             }
 
+            // Check weed (with environmental garden weeds exclusion)
+            if (result.Score < 75 && HasWord(lower, "weed"))
+            {
+                bool isGardenWeed = lower.Contains("blend") || lower.Contains("nature") ||
+                                   lower.Contains("foliage") || lower.Contains("ground") ||
+                                   lower.Contains("path") || lower.Contains("grass") ||
+                                   lower.Contains("dirt") || lower.Contains("garden") ||
+                                   lower.Contains("flora");
+                if (!isGardenWeed)
+                {
+                    result.Tags.Add("Alcohol/Drugs");
+                    matchedReasons.Add("Substance/Weed keyword");
+                    result.Score = Math.Max(result.Score, 75);
+                }
+            }
+
+            // Check hate keywords
             foreach (var kw in hateKeywords)
             {
                 if (lower.Contains(kw))
@@ -946,17 +1009,24 @@ namespace Source2Roblox
                 }
             }
 
-            // 5. High-Risk Zones: Decals, posters, sprays, custom folders
-            bool isDecalOrPoster = lower.StartsWith("decals/") || lower.Contains("/decals/") ||
-                                   lower.Contains("poster") || lower.Contains("spray") ||
-                                   lower.Contains("custom/") || lower.Contains("graffiti");
-            if (isDecalOrPoster)
+            // 5. Informational categorization (Not inherently risky!)
+            if (lower.Contains("poster") || lower.Contains("spray") || lower.Contains("graffiti") ||
+                lower.StartsWith("decals/") || lower.Contains("/decals/"))
             {
-                result.Tags.Add("Custom Decal/Poster");
-                if (result.Score < 50)
+                result.Tags.Add("Decal/Poster");
+                if (result.Score < 30)
                 {
-                    result.Score = 50;
-                    matchedReasons.Add("Decal/Poster/Custom spray");
+                    result.Score = Math.Max(result.Score, 30);
+                    matchedReasons.Add("Decal/Poster");
+                }
+            }
+
+            if (lower.Contains("custom/"))
+            {
+                result.Tags.Add("Custom Asset");
+                if (result.Score < 10)
+                {
+                    result.Score = Math.Max(result.Score, 10);
                 }
             }
 
@@ -965,7 +1035,7 @@ namespace Source2Roblox
                 result.Level = "HIGH";
                 result.Reason = $"High risk of Roblox moderation: {string.Join(", ", matchedReasons)}. Strongly recommend deselecting.";
             }
-            else if (result.Score >= 50)
+            else if (result.Score >= 70)
             {
                 result.Level = "MEDIUM";
                 result.Reason = $"Elevated risk: {string.Join(", ", matchedReasons)}. Review before uploading.";
@@ -979,39 +1049,91 @@ namespace Source2Roblox
             return result;
         }
 
-        private static bool GenerateTexturePreview(string texturePath, string outputRoot)
+        private static bool GenerateTexturePreview(string texturePath, string outputRoot, string mapContext = null)
         {
             try
             {
-                string matPath = texturePath.Trim().Replace('\\', '/');
-                if (!matPath.EndsWith(".vmt", StringComparison.OrdinalIgnoreCase) &&
-                    !matPath.EndsWith(".vtf", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(mapContext))
                 {
-                    matPath += ".vmt";
-                }
-                if (!matPath.StartsWith("materials/", StringComparison.OrdinalIgnoreCase))
-                {
-                    matPath = "materials/" + matPath;
+                    try
+                    {
+                        string bspPath = ResolveMapPath(mapContext);
+                        if (File.Exists(bspPath) || (GameMount != null && GameMount.HasFile(bspPath, GameMount)))
+                        {
+                            var bsp = new BSPFile(bspPath, GameMount);
+                        }
+                    }
+                    catch (Exception bspEx)
+                    {
+                        Console.WriteLine($"[Preview] Map context load note: {bspEx.Message}");
+                    }
                 }
 
-                string vtfPath = null;
-                if (matPath.EndsWith(".vmt", StringComparison.OrdinalIgnoreCase))
+                string cleanPath = texturePath.Trim().Replace('\\', '/');
+                if (cleanPath.StartsWith("materials/", StringComparison.OrdinalIgnoreCase))
+                    cleanPath = cleanPath.Substring("materials/".Length);
+
+                string[] candidateVmtPaths = new[]
                 {
-                    if (GameMount != null && GameMount.HasFile(matPath, GameMount))
+                    $"materials/{cleanPath}.vmt",
+                    $"materials/{cleanPath.ToLowerInvariant()}.vmt",
+                    $"{cleanPath}.vmt",
+                    $"{cleanPath.ToLowerInvariant()}.vmt"
+                };
+
+                string[] candidateVtfPaths = new[]
+                {
+                    $"materials/{cleanPath}.vtf",
+                    $"materials/{cleanPath.ToLowerInvariant()}.vtf",
+                    $"{cleanPath}.vtf",
+                    $"{cleanPath.ToLowerInvariant()}.vtf"
+                };
+
+                string vtfPath = null;
+
+                // 1. Try VMT lookup first to get diffuse VTF
+                foreach (var vmtCandidate in candidateVmtPaths)
+                {
+                    if (GameMount != null && GameMount.HasFile(vmtCandidate, GameMount))
                     {
-                        var vmt = new ValveMaterial(matPath, GameMount);
-                        vtfPath = vmt.DiffusePath;
-                    }
-                    if (string.IsNullOrEmpty(vtfPath) || GameMount == null || !GameMount.HasFile(vtfPath, GameMount))
-                    {
-                        string directVtf = matPath.Substring(0, matPath.Length - 4) + ".vtf";
-                        if (GameMount != null && GameMount.HasFile(directVtf, GameMount))
-                            vtfPath = directVtf;
+                        try
+                        {
+                            var vmt = new ValveMaterial(vmtCandidate, GameMount);
+                            if (!string.IsNullOrWhiteSpace(vmt.DiffusePath))
+                            {
+                                string diff = vmt.DiffusePath.Replace('\\', '/');
+                                if (!diff.EndsWith(".vtf", StringComparison.OrdinalIgnoreCase))
+                                    diff += ".vtf";
+                                if (!diff.StartsWith("materials/", StringComparison.OrdinalIgnoreCase))
+                                    diff = "materials/" + diff;
+
+                                if (GameMount.HasFile(diff, GameMount))
+                                {
+                                    vtfPath = diff;
+                                    break;
+                                }
+                                if (GameMount.HasFile(diff.ToLowerInvariant(), GameMount))
+                                {
+                                    vtfPath = diff.ToLowerInvariant();
+                                    break;
+                                }
+                            }
+                        }
+                        catch {}
                     }
                 }
-                else
+
+                // 2. If not resolved via VMT, try direct VTF candidates
+                if (string.IsNullOrEmpty(vtfPath))
                 {
-                    vtfPath = matPath;
+                    foreach (var vtfCandidate in candidateVtfPaths)
+                    {
+                        if (GameMount != null && GameMount.HasFile(vtfCandidate, GameMount))
+                        {
+                            vtfPath = vtfCandidate;
+                            break;
+                        }
+                    }
                 }
 
                 if (string.IsNullOrEmpty(vtfPath) || GameMount == null || !GameMount.HasFile(vtfPath, GameMount))

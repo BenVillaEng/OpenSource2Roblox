@@ -125,12 +125,20 @@ namespace Source2Roblox.Geometry
 
             foreach (int surf in surfEdges)
             {
-                uint edge;
+                uint edge = 0;
 
                 if (surf >= 0)
-                    edge = edges[surf * 2];
+                {
+                    int edgeIdx = surf * 2;
+                    if (edgeIdx >= 0 && edgeIdx < edges.Count)
+                        edge = edges[edgeIdx];
+                }
                 else
-                    edge = edges[-surf * 2 + 1];
+                {
+                    int edgeIdx = -surf * 2 + 1;
+                    if (edgeIdx >= 0 && edgeIdx < edges.Count)
+                        edge = edges[edgeIdx];
+                }
 
                 vertIndices.Add(edge);
             }
@@ -176,6 +184,9 @@ namespace Source2Roblox.Geometry
                 for (int i = 0; i < numFaces; i++)
                 {
                     int faceId = faceIndex + i;
+                    if (faceId < 0 || faceId >= bsp.Faces.Count)
+                        continue;
+
                     var face = bsp.Faces[faceId];
 
                     if (shouldSkip)
@@ -189,8 +200,12 @@ namespace Source2Roblox.Geometry
 
                     for (int j = 0; j < numEdges; j++)
                     {
-                        var vertId = (int)vertIndices[firstEdge + j];
-                        vertOffsets[vertId] = offset;
+                        int edgeIdx = firstEdge + j;
+                        if (edgeIdx >= 0 && edgeIdx < vertIndices.Count)
+                        {
+                            var vertId = (int)vertIndices[edgeIdx];
+                            vertOffsets[vertId] = offset;
+                        }
                     }
 
                     face.Entity = entity;
@@ -213,13 +228,23 @@ namespace Source2Roblox.Geometry
                 var numEdges = face.NumEdges;
                 face.FirstNorm = numNorms;
 
-                var texInfo = bsp.TexInfo[face.TexInfo];
-                var texData = bsp.TexData[texInfo.TextureData];
+                string matName = null;
+                if (face.TexInfo >= 0 && face.TexInfo < bsp.TexInfo.Count)
+                {
+                    var texInfo = bsp.TexInfo[face.TexInfo];
+                    if (texInfo.TextureData >= 0 && texInfo.TextureData < bsp.TexData.Count)
+                    {
+                        var texData = bsp.TexData[texInfo.TextureData];
+                        int stringIndex = texData.StringTableIndex;
+                        if (stringIndex >= 0 && stringIndex < bsp.TexDataStringTable.Count)
+                        {
+                            var matIndex = bsp.TexDataStringTable[stringIndex];
+                            bsp.TexDataStringData.TryGetValue(matIndex, out matName);
+                        }
+                    }
+                }
 
-                int stringIndex = texData.StringTableIndex;
-                var matIndex = bsp.TexDataStringTable[stringIndex];
-
-                face.Material = bsp.TexDataStringData[matIndex];
+                face.Material = matName ?? "tools/toolsnodraw";
                 numNorms += numEdges;
             }
 
@@ -236,14 +261,24 @@ namespace Source2Roblox.Geometry
                 int firstEdge = face.FirstEdge;
                 int firstNorm = face.FirstNorm;
 
-                var texInfo = bsp.TexInfo[face.TexInfo];
-                var texData = bsp.TexData[texInfo.TextureData];
+                Texel texel = null;
+                Vector2 size = new Vector2(32, 32);
+                TextureFlags flags = TextureFlags.None;
 
-                var texel = texInfo.TextureVecs;
-                var size = texData.Size;
+                if (face.TexInfo >= 0 && face.TexInfo < bsp.TexInfo.Count)
+                {
+                    var texInfo = bsp.TexInfo[face.TexInfo];
+                    texel = texInfo.TextureVecs;
+                    flags = texInfo.Flags;
+
+                    if (texInfo.TextureData >= 0 && texInfo.TextureData < bsp.TexData.Count)
+                    {
+                        var texData = bsp.TexData[texInfo.TextureData];
+                        size = texData.Size;
+                    }
+                }
 
                 var material = face.Material;
-                var flags = texInfo.Flags;
 
                 if ((flags & IGNORE) != TextureFlags.None)
                 {
@@ -259,6 +294,12 @@ namespace Source2Roblox.Geometry
 
                 if (face.DispInfo >= 0)
                 {
+                    if (dispInfo < 0 || dispInfo >= bsp.Displacements.Count)
+                    {
+                        face.Skip = true;
+                        continue;
+                    }
+
                     var disp = bsp.Displacements[dispInfo];
                     Debug.Assert(face.NumEdges == 4);
 
@@ -270,8 +311,14 @@ namespace Source2Roblox.Geometry
 
                     for (int i = 0; i < 4; i++)
                     {
-                        var vertIndex = (int)vertIndices[firstEdge + i];
-                        var vertex = bsp.Vertices[vertIndex];
+                        int edgeIdx = firstEdge + i;
+                        Vector3 vertex = new Vector3();
+                        if (edgeIdx >= 0 && edgeIdx < vertIndices.Count)
+                        {
+                            var vertIndex = (int)vertIndices[edgeIdx];
+                            if (vertIndex >= 0 && vertIndex < bsp.Vertices.Count)
+                                vertex = bsp.Vertices[vertIndex];
+                        }
 
                         var dist = (vertex - startPos).Magnitude;
                         corners[i] = vertex;
@@ -295,16 +342,33 @@ namespace Source2Roblox.Geometry
                     var dispSize = (1 << disp.Power) + 1;
                     var faceNormal = new Vector3();
 
+                    Vector3 defaultPlaneNorm = new Vector3(0, 1, 0);
+                    if (planeId >= 0 && planeId < bsp.Planes.Count)
+                    {
+                        var pn = bsp.Planes[planeId].Normal;
+                        if (face.Side != 0)
+                            pn = -pn;
+                        defaultPlaneNorm = new Vector3(pn.X, pn.Z, -pn.Y);
+                    }
+
                     for (int i = 0; i < numEdges; i++)
                     {
-                        var normIndex = (int)normIndices[firstNorm + i];
-                        var norm = bsp.VertNormals[normIndex];
+                        Vector3 norm = defaultPlaneNorm;
+                        int normIdxPos = firstNorm + i;
+                        if (normIdxPos >= 0 && normIdxPos < normIndices.Count)
+                        {
+                            var normIndex = (int)normIndices[normIdxPos];
+                            if (normIndex >= 0 && normIndex < bsp.VertNormals.Count)
+                            {
+                                var rawNorm = bsp.VertNormals[normIndex];
+                                norm = new Vector3(rawNorm.X, rawNorm.Z, -rawNorm.Y);
+                            }
+                        }
 
-                        norm = new Vector3(norm.X, norm.Z, -norm.Y);
                         faceNormal += norm;
                     }
 
-                    faceNormal = faceNormal.Unit;
+                    faceNormal = (faceNormal.Magnitude > 0) ? faceNormal.Unit : defaultPlaneNorm;
                     numEdges = (dispSize * dispSize);
 
                     var alpha = 0f;
@@ -321,13 +385,16 @@ namespace Source2Roblox.Geometry
                             var i = disp.DispVertStart + (y * dispSize) + x;
 
                             var pos = rowStart.Lerp(rowEnd, colSample);
-                            var uv = texel.CalcTexCoord(pos, size);
+                            var uv = (texel != null) ? texel.CalcTexCoord(pos, size) : new Vector2();
 
-                            var dispVert = bsp.DispVerts[i];
-                            pos += dispVert.Vector * dispVert.Dist;
+                            if (i >= 0 && i < bsp.DispVerts.Count)
+                            {
+                                var dispVert = bsp.DispVerts[i];
+                                pos += dispVert.Vector * dispVert.Dist;
+                                alpha += dispVert.Alpha / numEdges;
+                            }
 
                             center += pos / numEdges;
-                            alpha += dispVert.Alpha / numEdges;
 
                             Mesh.AddVertex(pos.X, pos.Z, -pos.Y);
                             Mesh.AddUV(uv.X, 1f - uv.Y);
@@ -362,10 +429,10 @@ namespace Source2Roblox.Geometry
                             int ba = bb - 1;
                             preSample(ba);
 
-                            Vector3 a = meshVerts[aa],
-                                    b = meshVerts[ab],
-                                    c = meshVerts[ba],
-                                    d = meshVerts[bb];
+                            Vector3 a = (aa >= 0 && aa < meshVerts.Count) ? meshVerts[aa] : new Vector3(),
+                                    b = (ab >= 0 && ab < meshVerts.Count) ? meshVerts[ab] : new Vector3(),
+                                    c = (ba >= 0 && ba < meshVerts.Count) ? meshVerts[ba] : new Vector3(),
+                                    d = (bb >= 0 && bb < meshVerts.Count) ? meshVerts[bb] : new Vector3();
 
                             var normA = (a - c).Cross(d - c).Unit;
                             var normB = (a - d).Cross(b - d).Unit;
@@ -399,22 +466,42 @@ namespace Source2Roblox.Geometry
                 }
                 else
                 {
+                    Vector3 defaultPlaneNorm = new Vector3(0, 1, 0);
+                    if (planeId >= 0 && planeId < bsp.Planes.Count)
+                    {
+                        var pn = bsp.Planes[planeId].Normal;
+                        if (face.Side != 0)
+                            pn = -pn;
+                        defaultPlaneNorm = new Vector3(pn.X, pn.Z, -pn.Y);
+                    }
+
                     for (int i = numEdges - 1; i >= 0; i--)
                     {
-                        var vertIndex = (int)vertIndices[firstEdge + i];
-                        var normIndex = (int)normIndices[firstNorm + i];
+                        int edgeIdx = firstEdge + i;
+                        int vertIndex = (edgeIdx >= 0 && edgeIdx < vertIndices.Count) ? (int)vertIndices[edgeIdx] : -1;
+                        var vert = (vertIndex >= 0 && vertIndex < bsp.Vertices.Count) ? bsp.Vertices[vertIndex] : new Vector3();
 
-                        var vert = bsp.Vertices[vertIndex];
-                        var norm = bsp.VertNormals[normIndex];
-                        var uv = texel.CalcTexCoord(vert, size);
+                        Vector3 norm = defaultPlaneNorm;
+                        int normIdxPos = firstNorm + i;
+                        if (normIdxPos >= 0 && normIdxPos < normIndices.Count)
+                        {
+                            var normIndex = (int)normIndices[normIdxPos];
+                            if (normIndex >= 0 && normIndex < bsp.VertNormals.Count)
+                            {
+                                var rawNorm = bsp.VertNormals[normIndex];
+                                norm = new Vector3(rawNorm.X, rawNorm.Z, -rawNorm.Y);
+                            }
+                        }
 
-                        if (vertOffsets.ContainsKey(vertIndex))
+                        var uv = (texel != null) ? texel.CalcTexCoord(vert, size) : new Vector2();
+
+                        if (vertIndex >= 0 && vertOffsets.ContainsKey(vertIndex))
                             vert += vertOffsets[vertIndex];
 
                         center += vert / numEdges;
                         Mesh.AddUV(uv.X, uv.Y);
                         Mesh.AddVertex(vert.X, vert.Z, -vert.Y);
-                        Mesh.AddNormal(norm.X, norm.Z, -norm.Y);
+                        Mesh.AddNormal(norm.X, norm.Y, norm.Z);
                     }
                 }
 

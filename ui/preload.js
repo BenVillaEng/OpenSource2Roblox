@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('api', {
     scanSteamGames: () => ipcRenderer.invoke('scan-steam-games'),
     scanMaps: (gameDir) => ipcRenderer.invoke('scan-maps', gameDir),
     inspectMap: (gameDir, mapName) => ipcRenderer.invoke('inspect-map', { gameDir, mapName }),
-    previewTexture: (gameDir, texturePath) => ipcRenderer.invoke('preview-texture', { gameDir, texturePath }),
+    previewTexture: (gameDir, texturePath, mapName) => ipcRenderer.invoke('preview-texture', { gameDir, texturePath, mapName }),
     browseFolder: (title) => ipcRenderer.invoke('browse-folder', title),
     browseFile: (filters) => ipcRenderer.invoke('browse-file', filters),
 

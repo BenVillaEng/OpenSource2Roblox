@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
@@ -205,6 +205,9 @@ namespace Source2Roblox.Geometry
 
         public Vector3 GetVertex(int index)
         {
+            if (index < 0 || index >= Vertices.Count)
+                return new Vector3();
+
             return Vertices[index] * Scale;
         }
 

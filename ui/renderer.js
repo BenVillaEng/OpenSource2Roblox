@@ -378,12 +378,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // --- Map Asset Inspector Implementation ---
+    let isInspectingMap = false;
+
     async function openInspector(mapName) {
         if (!mapName || !mapName.trim()) {
             statusText.innerText = 'Please select or enter a map name to inspect.';
             logToConsole('Cannot inspect: No map selected.', 'error');
             return;
         }
+
+        if (isInspectingMap) {
+            logToConsole('Map inspection is already in progress.', 'info');
+            return;
+        }
+        isInspectingMap = true;
 
         let gameDir = gameDirInput.value.trim();
         // If gameDir is not set, try to infer it from the map path
@@ -398,6 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (!gameDir) {
+            isInspectingMap = false;
             statusText.innerText = 'Please select a valid Source game directory first.';
             logToConsole('Cannot inspect: Missing Source game folder.', 'error');
             return;
@@ -411,6 +420,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mapBaseName = targetMap.replace(/^.*[\\\/]/, '').replace(/\.bsp$/i, '');
         inspectModalTitle.innerText = `Map Asset Inspector - ${mapBaseName}.bsp`;
         inspectFooterInfo.innerText = `Inspecting ${mapBaseName}.bsp in ${gameDir}...`;
+
+        // Clear prior table content so old map data doesn't sit under the loader
+        inspectModelsTbody.innerHTML = '';
+        inspectTexturesTbody.innerHTML = '';
+        inspectEntitiesTbody.innerHTML = '';
+
         modalMapInspect.classList.remove('hidden');
         inspectLoading.classList.remove('hidden');
 
@@ -485,9 +500,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderFilteredInspectViews();
             inspectFooterInfo.innerText = `Map ${mapBaseName}.bsp ready. Click 'CONVERT THIS MAP NOW' to export to Roblox.`;
         } catch (err) {
-            inspectLoading.classList.add('hidden');
             logToConsole(`Inspection exception: ${err.message}`, 'error');
             inspectFooterInfo.innerHTML = `<span style="color:var(--gs-red);">Exception: ${err.message}</span>`;
+        } finally {
+            isInspectingMap = false;
+            inspectLoading.classList.add('hidden');
         }
     }
 
@@ -498,45 +515,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function hasWord(text, word) {
+        if (!text || !word) return false;
+        const re = new RegExp(`(^|[^a-z0-9])${word}([^a-z0-9]|$)`, 'i');
+        return re.test(text);
+    }
+
     function assessTextureRisk(path) {
         if (!path) return { level: 'CLEAN', score: 0, tags: [], reason: 'Safe', isRisky: false };
         const lower = path.toLowerCase().replace(/\\/g, '/');
 
-        const nudityKeywords = [
-            'pinup', 'girl', 'nude', 'naked', 'playboy', 'hentai', 'anime_girl', 'sexy', 'boob',
-            'tits', 'bikini', 'lingerie', 'swimsuit', 'cleavage', 'ass', 'butt', 'penis', 'dick',
-            'cock', 'vagina', 'pussy', 'strip', 'stripper', 'erotic', 'porn', 'xxx', 'waifu',
-            'poster_girl', 'girl_poster', 'woman_poster', 'babes', 'adult', 'bra', 'panties',
-            'underwear', 'nsfw', 'fetish', 'lewd', 'camgirl', 'sensual', 'nudity'
+        const explicitNudity = [
+            'pinup', 'nude', 'naked', 'playboy', 'hentai', 'anime_girl', 'sexy', 'boob',
+            'bikini', 'lingerie', 'swimsuit', 'cleavage', 'vagina', 'pussy',
+            'stripper', 'erotic', 'porn', 'xxx', 'waifu', 'poster_girl', 'girl_poster',
+            'woman_poster', 'babes', 'panties', 'underwear', 'nsfw', 'fetish', 'lewd',
+            'camgirl', 'sensual', 'nudity'
         ];
+        const boundaryNudity = ['ass', 'butt', 'cock', 'dick', 'tit', 'tits', 'bra'];
 
         const goreKeywords = [
             'gore', 'blood', 'bloody', 'guts', 'flesh', 'gib', 'gibs', 'corpse', 'dead_body',
             'deadbody', 'mutilat', 'dismember', 'severed', 'wound', 'entrails', 'viscera',
-            'slaughter', 'decapitat', 'splatter', 'murder', 'carnage', 'decap', 'hanging_body',
+            'slaughter', 'decapitat', 'splatter', 'murder', 'carnage', 'hanging_body',
             'charred_corpse', 'severed_limb'
         ];
 
         const drugKeywords = [
             'beer', 'liquor', 'wine', 'vodka', 'whiskey', 'whisky', 'rum', 'tequila', 'alcohol',
-            'bar_sign', 'pub_sign', 'cigar', 'cigarette', 'smoke', 'tobacco', 'weed', 'cannabis',
-            'marijuana', 'joint', 'bong', 'drug', 'pills', 'syringe', 'needle', 'cocaine', 'meth',
-            'heroin', 'pharmacy', 'drunk', 'bottle_labels', 'budweiser', 'heineken', 'corona',
-            'jackdaniels', 'ashtray', 'smokes', 'carton', 'pack_smokes', 'snuff', 'hookah', 'vape'
+            'bar_sign', 'pub_sign', 'cigar', 'cigarette', 'tobacco', 'cannabis',
+            'marijuana', 'joint', 'bong', 'pills', 'syringe', 'cocaine', 'meth',
+            'heroin', 'budweiser', 'heineken', 'corona', 'jackdaniels', 'ashtray',
+            'pack_smokes', 'hookah', 'vape'
         ];
 
-        const hateKeywords = ['nazi', 'swastika', 'hitler', 'ss_', 'terror', 'kkk', 'fascist', 'aryan'];
+        const hateKeywords = ['nazi', 'swastika', 'hitler', 'ss_', 'terrorist', 'kkk', 'fascist', 'aryan'];
 
         let score = 0;
         const tags = [];
         const reasons = [];
 
-        for (const kw of nudityKeywords) {
+        for (const kw of explicitNudity) {
             if (lower.includes(kw)) {
                 tags.push('Nudity/Pinup');
                 reasons.push(`Pinup/Nudity keyword ('${kw}')`);
                 score = Math.max(score, 95);
                 break;
+            }
+        }
+
+        if (score < 95) {
+            for (const kw of boundaryNudity) {
+                if (hasWord(lower, kw)) {
+                    tags.push('Nudity/Pinup');
+                    reasons.push(`Pinup/Adult keyword ('${kw}')`);
+                    score = Math.max(score, 95);
+                    break;
+                }
             }
         }
 
@@ -549,12 +584,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
+        if (score < 85 && lower.includes('blood') && !lower.includes('bloodhound')) {
+            tags.push('Gore/Blood');
+            reasons.push('Blood keyword');
+            score = Math.max(score, 85);
+        }
+
         for (const kw of drugKeywords) {
             if (lower.includes(kw)) {
                 tags.push('Alcohol/Drugs');
                 reasons.push(`Alcohol/Drugs keyword ('${kw}')`);
                 score = Math.max(score, 75);
                 break;
+            }
+        }
+
+        if (score < 75 && hasWord(lower, 'weed')) {
+            const isGardenWeed = lower.includes('blend') || lower.includes('nature') ||
+                                lower.includes('foliage') || lower.includes('ground') ||
+                                lower.includes('path') || lower.includes('grass') ||
+                                lower.includes('dirt') || lower.includes('garden') ||
+                                lower.includes('flora');
+            if (!isGardenWeed) {
+                tags.push('Alcohol/Drugs');
+                reasons.push('Substance/Weed keyword');
+                score = Math.max(score, 75);
             }
         }
 
@@ -567,14 +621,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        const isDecalOrPoster = lower.startsWith('decals/') || lower.includes('/decals/') ||
-                                lower.includes('poster') || lower.includes('spray') ||
-                                lower.includes('custom/') || lower.includes('graffiti');
-        if (isDecalOrPoster) {
-            tags.push('Custom Decal/Poster');
-            if (score < 50) {
-                score = 50;
-                reasons.push('Decal/Poster/Custom spray (frequent moderation vector)');
+        if (lower.includes('poster') || lower.includes('spray') || lower.includes('graffiti') ||
+            lower.startsWith('decals/') || lower.includes('/decals/')) {
+            tags.push('Decal/Poster');
+            if (score < 30) {
+                score = Math.max(score, 30);
+                reasons.push('Decal/Poster');
+            }
+        }
+
+        if (lower.includes('custom/')) {
+            tags.push('Custom Asset');
+            if (score < 10) {
+                score = Math.max(score, 10);
             }
         }
 
@@ -583,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (score >= 80) {
             level = 'HIGH';
             reason = `HIGH RISK of Roblox moderation: ${reasons.join(', ')}. Strongly recommend deselecting.`;
-        } else if (score >= 50) {
+        } else if (score >= 70) {
             level = 'MEDIUM';
             reason = `Elevated risk: ${reasons.join(', ')}. Review image before uploading.`;
         }
@@ -593,7 +652,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             score,
             tags,
             reason,
-            isRisky: score >= 50
+            isRisky: score >= 70
         };
     }
 
@@ -609,9 +668,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    let currentPreviewRequestId = 0;
+
     async function loadTexturePreview(t) {
         selectedTextureForPreview = t;
         if (!t) return;
+
+        const requestId = ++currentPreviewRequestId;
 
         if (texPreviewCategory) texPreviewCategory.innerText = t.type || 'Material';
         if (texPreviewPath) {
@@ -642,8 +705,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check cache
         if (texturePreviewCache.has(t.path)) {
             const cached = texturePreviewCache.get(t.path);
-            if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
             if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+            if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
             if (texPreviewImg) {
                 texPreviewImg.src = cached.dataUrl || `file://${cached.path.replace(/\\/g, '/')}`;
                 texPreviewImg.classList.remove('hidden');
@@ -656,6 +719,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Decode via engine
         const gameDir = gameDirInput.value.trim();
         if (!gameDir) {
+            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+            if (texPreviewImg) texPreviewImg.classList.add('hidden');
             if (texPreviewPlaceholder) {
                 texPreviewPlaceholder.classList.remove('hidden');
                 texPreviewPlaceholder.innerHTML = '<div style="font-size:11px; color:var(--gs-text-dim);">No game directory set</div>';
@@ -669,34 +734,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (texPreviewResolution) texPreviewResolution.innerText = 'Res: loading...';
         if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: loading...';
 
+        const mapContext = currentInspection ? (currentInspection.map || selectedMapInput.value.trim()) : selectedMapInput.value.trim();
+
         try {
-            const res = await window.api.previewTexture(gameDir, t.path);
-            if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
-                if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
-                if (res.success && res.data) {
-                    texturePreviewCache.set(t.path, res.data);
-                    if (texPreviewImg) {
-                        texPreviewImg.src = res.data.dataUrl || `file://${res.data.path.replace(/\\/g, '/')}`;
-                        texPreviewImg.classList.remove('hidden');
-                    }
-                    if (texPreviewResolution) texPreviewResolution.innerText = `Res: ${res.data.width} x ${res.data.height}`;
-                    if (texPreviewFormat) texPreviewFormat.innerText = `Fmt: ${res.data.format}`;
-                } else {
-                    if (texPreviewPlaceholder) {
-                        texPreviewPlaceholder.classList.remove('hidden');
-                        texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-text-dim); text-align:center;">Preview unavailable<br>(${res.error || 'VTF not in VPK'})</div>`;
-                    }
-                    if (texPreviewResolution) texPreviewResolution.innerText = 'Res: --';
-                    if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: --';
-                }
+            const res = await window.api.previewTexture(gameDir, t.path, mapContext);
+            if (requestId !== currentPreviewRequestId) {
+                // Superseded by another selection
+                return;
             }
-        } catch (err) {
-            if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
-                if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+
+            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+
+            if (res.success && res.data) {
+                texturePreviewCache.set(t.path, res.data);
+                if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
+                if (texPreviewImg) {
+                    texPreviewImg.src = res.data.dataUrl || `file://${res.data.path.replace(/\\/g, '/')}`;
+                    texPreviewImg.classList.remove('hidden');
+                }
+                if (texPreviewResolution) texPreviewResolution.innerText = `Res: ${res.data.width} x ${res.data.height}`;
+                if (texPreviewFormat) texPreviewFormat.innerText = `Fmt: ${res.data.format}`;
+            } else {
+                if (texPreviewImg) texPreviewImg.classList.add('hidden');
                 if (texPreviewPlaceholder) {
                     texPreviewPlaceholder.classList.remove('hidden');
-                    texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-red);">Error: ${err.message}</div>`;
+                    texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-text-dim); text-align:center;">Preview unavailable<br>(${res.error || 'VTF not in VPK'})</div>`;
                 }
+                if (texPreviewResolution) texPreviewResolution.innerText = 'Res: --';
+                if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: --';
+            }
+        } catch (err) {
+            if (requestId !== currentPreviewRequestId) return;
+            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+            if (texPreviewImg) texPreviewImg.classList.add('hidden');
+            if (texPreviewPlaceholder) {
+                texPreviewPlaceholder.classList.remove('hidden');
+                texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-red);">Error: ${err.message}</div>`;
+            }
+        } finally {
+            if (requestId === currentPreviewRequestId && texPreviewLoading) {
+                texPreviewLoading.classList.add('hidden');
             }
         }
     }

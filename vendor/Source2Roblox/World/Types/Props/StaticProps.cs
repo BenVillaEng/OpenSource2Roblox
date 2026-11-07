@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Drawing;
@@ -170,7 +170,7 @@ namespace Source2Roblox.World.Types
                 for (int i = 0; i < numProps; i++)
                 {
                     var prop = new StaticProp(bsp, sprp, reader, staticPropSize);
-                    prop.Name = strings[prop.PropType];
+                    prop.Name = (prop.PropType >= 0 && prop.PropType < strings.Length) ? strings[prop.PropType] : "";
                     props[i] = prop;
                 }
             }

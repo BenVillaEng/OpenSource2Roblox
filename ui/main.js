@@ -363,7 +363,7 @@ ipcMain.handle('inspect-map', async (event, { gameDir, mapName }) => {
 });
 
 // Texture Preview Generation
-ipcMain.handle('preview-texture', async (event, { gameDir, texturePath }) => {
+ipcMain.handle('preview-texture', async (event, { gameDir, texturePath, mapName }) => {
     const executablePath = getEngineExecutablePath();
     if (!fs.existsSync(executablePath)) {
         return { success: false, error: `Engine executable not found at: ${executablePath}` };
@@ -381,6 +381,9 @@ ipcMain.handle('preview-texture', async (event, { gameDir, texturePath }) => {
 
     return new Promise((resolve) => {
         const args = ['-game', gameDir, '-previewTexture', texturePath, '-output', previewDir];
+        if (mapName) {
+            args.push('-map', mapName);
+        }
         const proc = spawn(executablePath, args, {
             cwd: path.dirname(executablePath),
             windowsHide: true

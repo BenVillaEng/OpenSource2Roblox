@@ -927,8 +927,12 @@ namespace Source2Roblox.Geometry
                         for (int i = 0; i < numEdges; i++)
                         {
                             var pos = objMesh.GetVertex(firstVert + i);
-                            var norm = objMesh.Normals[firstNorm + i];
-                            var uv = objMesh.UVs[firstUV + i];
+                            var norm = (firstNorm + i >= 0 && firstNorm + i < objMesh.Normals.Count)
+                                ? objMesh.Normals[firstNorm + i]
+                                : new Vector3(0, 1, 0);
+                            var uv = (firstUV + i >= 0 && firstUV + i < objMesh.UVs.Count)
+                                ? objMesh.UVs[firstUV + i]
+                                : new Vector2();
 
                             var vert = new RobloxVertex()
                             {
@@ -1196,7 +1200,12 @@ namespace Source2Roblox.Geometry
                 foreach (var prop in staticProps)
                 {
                     var modelIndex = prop.PropType;
-                    string modelName = staticProps.Strings[modelIndex];
+                    string modelName = (staticProps.Strings != null && modelIndex >= 0 && modelIndex < staticProps.Strings.Length)
+                        ? staticProps.Strings[modelIndex]
+                        : null;
+
+                    if (string.IsNullOrWhiteSpace(modelName))
+                        continue;
 
                     var request = new ModelRequest()
                     {
