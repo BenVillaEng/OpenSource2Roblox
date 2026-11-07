@@ -1,6 +1,6 @@
 {
   "name": "opensource2roblox-goldsource",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "GoldSource UI for OpenSource2Roblox Exporter",
   "main": "main.js",
   "scripts": {
