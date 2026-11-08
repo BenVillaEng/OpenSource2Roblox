@@ -374,13 +374,6 @@ namespace Source2Roblox.World
                         reader.ReadToEnd(TexInfo);
                         break;
                     case LumpType.Faces:
-                        // If this map has an HDR faces lump with data, skip LDR faces
-                        if (Lumps[(int)LumpType.FacesHDR] != null &&
-                            Lumps[(int)LumpType.FacesHDR].Length > 0 &&
-                            Lumps[(int)LumpType.FacesHDR].Offset > 0)
-                        {
-                            break;
-                        }
                         lock (Faces)
                         {
                             if (Faces.Count == 0)
@@ -502,7 +495,18 @@ namespace Source2Roblox.World
 
             for (int i = 0; i < brush.NumSides; i++)
             {
-                var side = BrushSides[firstSide + i];
+                int sideIdx = firstSide + i;
+                if (sideIdx < 0 || sideIdx >= BrushSides.Count)
+                {
+                    usePlane[i] = false;
+                    continue;
+                }
+                var side = BrushSides[sideIdx];
+                if (side.PlaneNum < 0 || side.PlaneNum >= Planes.Count)
+                {
+                    usePlane[i] = false;
+                    continue;
+                }
                 var plane = Planes[side.PlaneNum];
 
                 // Don't use this plane if it has a zero-length normal.
@@ -517,7 +521,12 @@ namespace Source2Roblox.World
 
                 for (int j = 0; j < i; j++)
                 {
-                    var sideCheck = BrushSides[firstSide + j];
+                    int checkIdx = firstSide + j;
+                    if (checkIdx < 0 || checkIdx >= BrushSides.Count)
+                        continue;
+                    var sideCheck = BrushSides[checkIdx];
+                    if (sideCheck.PlaneNum < 0 || sideCheck.PlaneNum >= Planes.Count)
+                        continue;
                     var planeCheck = Planes[sideCheck.PlaneNum];
 
                     var f1 = plane.Normal;
@@ -545,7 +554,12 @@ namespace Source2Roblox.World
 
             for (int i = 0; i < numSides; i++)
             {
-                var side = BrushSides[firstSide + i];
+                int sideIdx = firstSide + i;
+                if (sideIdx < 0 || sideIdx >= BrushSides.Count)
+                    continue;
+                var side = BrushSides[sideIdx];
+                if (side.PlaneNum < 0 || side.PlaneNum >= Planes.Count)
+                    continue;
                 var plane = Planes[side.PlaneNum];
 
                 if (!usePlane[i])
@@ -561,11 +575,18 @@ namespace Source2Roblox.World
                 {
                     if (i != clipId)
                     {
-                        var clipSide = BrushSides[firstSide + clipId];
-                        var clip = Planes[clipSide.PlaneNum];
+                        int clipIdx = firstSide + clipId;
+                        if (clipIdx >= 0 && clipIdx < BrushSides.Count)
+                        {
+                            var clipSide = BrushSides[clipIdx];
+                            if (clipSide.PlaneNum >= 0 && clipSide.PlaneNum < Planes.Count)
+                            {
+                                var clip = Planes[clipSide.PlaneNum];
 
-                        // Flip the plane, because we want to keep the back side.
-                        winding = winding.Clip(-clip.Normal, -clip.Dist);
+                                // Flip the plane, because we want to keep the back side.
+                                winding = winding.Clip(-clip.Normal, -clip.Dist);
+                            }
+                        }
                     }
 
                     clipId++;

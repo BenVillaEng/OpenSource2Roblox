@@ -299,6 +299,8 @@
             </div>
             <div class="gs-actions">
                 <button class="gs-btn btn-gold" id="btn-convert-action">CONVERT MAP NOW</button>
+                <button class="gs-btn" id="btn-add-queue" title="Add current map to batch queue">ADD TO QUEUE</button>
+                <button class="gs-btn" id="btn-view-queue" title="View Batch Conversion Queue">QUEUE (<span id="queue-count">0</span>)</button>
                 <button class="gs-btn" id="btn-open-studio" disabled>OPEN STUDIO PLACE</button>
                 <button class="gs-btn" id="btn-open-output">OPEN EXPORT FOLDER</button>
                 <button class="gs-btn" id="btn-cancel" style="display:none;">CANCEL</button>
@@ -400,6 +402,8 @@
                                     <span style="color:#ff8888; font-weight:bold;">[!]</span> Deselect All Risky (<span id="tex-risky-btn-count">0</span>)
                                 </button>
                                 <button class="gs-btn gs-btn-sm" id="btn-tex-invert" title="Invert current texture selection">Invert</button>
+                                <button class="gs-btn gs-btn-sm" id="btn-tex-export-profile" title="Save current texture exclusions to JSON profile">Export Rules</button>
+                                <button class="gs-btn gs-btn-sm" id="btn-tex-import-profile" title="Load texture exclusions from JSON profile">Import Rules</button>
                             </div>
                             <div class="gs-tex-filter-pills">
                                 <button class="tex-filter-pill active" data-tex-filter="all">All (<span id="tex-pill-all-count">0</span>)</button>
@@ -574,6 +578,56 @@
                         <button class="gs-btn btn-gold" id="btn-moderation-resume">RESUME UPLOAD NOW</button>
                         <button class="gs-btn" id="btn-moderation-dismiss">Dismiss</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Batch Conversion Queue (GoldSource VGUI Style) -->
+    <div id="modal-batch-queue" class="gs-modal-backdrop hidden">
+        <div class="gs-modal-window" style="width: 750px; max-width: 95vw; height: 500px; display: flex; flex-direction: column;">
+            <div class="gs-modal-titlebar">
+                <div class="gs-modal-title">
+                    <span class="gs-lambda">λ</span>
+                    <span>Batch Conversion Queue</span>
+                </div>
+                <button class="gs-win-btn" id="btn-close-queue-modal" title="Close">X</button>
+            </div>
+
+            <div class="gs-modal-body" style="flex: 1; display: flex; flex-direction: column; padding: 10px; overflow: hidden;">
+                <div style="font-size: 11px; color: var(--gs-text-dim); margin-bottom: 8px;">
+                    Maps in the queue will be converted sequentially one after another. Upload caches ensure no redundant uploads.
+                </div>
+                <div class="gs-listbox" style="flex: 1; overflow-y: auto; background-color: #22291e; border: 1px solid var(--gs-border-dark);">
+                    <table class="gs-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">#</th>
+                                <th style="width: 220px;">MAP NAME</th>
+                                <th>GAME DIRECTORY</th>
+                                <th style="width: 110px; text-align: center;">STATUS</th>
+                                <th style="width: 70px; text-align: center;">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queue-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 25px; color: var(--gs-text-dim);">
+                                    Batch queue is currently empty. Click 'ADD TO QUEUE' to add maps.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="gs-modal-footer">
+                <div class="gs-modal-footer-info" id="queue-footer-info">
+                    0 maps in queue.
+                </div>
+                <div class="gs-modal-footer-actions">
+                    <button class="gs-btn btn-gold" id="btn-start-queue-process">START BATCH CONVERSION</button>
+                    <button class="gs-btn" id="btn-clear-queue">Clear Queue</button>
+                    <button class="gs-btn" id="btn-queue-close">Close</button>
                 </div>
             </div>
         </div>

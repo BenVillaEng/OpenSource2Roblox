@@ -72,6 +72,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnTexDeselectAll = document.getElementById('btn-tex-deselect-all');
     const btnTexDeselectRisky = document.getElementById('btn-tex-deselect-risky');
     const btnTexInvert = document.getElementById('btn-tex-invert');
+    const btnTexExportProfile = document.getElementById('btn-tex-export-profile');
+    const btnTexImportProfile = document.getElementById('btn-tex-import-profile');
     const texRiskyBtnCount = document.getElementById('tex-risky-btn-count');
     const texPillAllCount = document.getElementById('tex-pill-all-count');
     const texPillRiskyCount = document.getElementById('tex-pill-risky-count');
@@ -145,6 +147,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnOpenStudio = document.getElementById('btn-open-studio');
     const btnOpenOutput = document.getElementById('btn-open-output');
     const btnCancel = document.getElementById('btn-cancel');
+
+    // Batch Queue Elements
+    const btnAddQueue = document.getElementById('btn-add-queue');
+    const btnViewQueue = document.getElementById('btn-view-queue');
+    const queueCountBadge = document.getElementById('queue-count');
+    const modalBatchQueue = document.getElementById('modal-batch-queue');
+    const btnCloseQueueModal = document.getElementById('btn-close-queue-modal');
+    const btnQueueClose = document.getElementById('btn-queue-close');
+    const queueTbody = document.getElementById('queue-tbody');
+    const queueFooterInfo = document.getElementById('queue-footer-info');
+    const btnStartQueueProcess = document.getElementById('btn-start-queue-process');
+    const btnClearQueue = document.getElementById('btn-clear-queue');
+
+    const batchQueue = [];
+    let isBatchRunning = false;
 
     // State Variables
     let currentMaps = [];
@@ -531,6 +548,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeInspector() {
         modalMapInspect.classList.add('hidden');
+        if (inspectLoading) {
+            inspectLoading.classList.add('hidden');
+            inspectLoading.style.display = 'none';
+        }
+        if (texPreviewLoading) {
+            texPreviewLoading.classList.add('hidden');
+            texPreviewLoading.style.display = 'none';
+        }
         if (excludedTexturesSet.size > 0) {
             logToConsole(`Texture Exclusion Active: ${excludedTexturesSet.size} textures marked safe (will not upload to Roblox).`, 'info');
         }
@@ -1080,6 +1105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (texPreviewImg) {
             texPreviewImg.classList.add('hidden');
             texPreviewImg.style.display = 'none';
+            texPreviewImg.removeAttribute('src');
         }
         if (texPreviewLoading) {
             texPreviewLoading.classList.remove('hidden');
@@ -1134,6 +1160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (texPreviewImg) {
                     texPreviewImg.classList.add('hidden');
                     texPreviewImg.style.display = 'none';
+                    texPreviewImg.removeAttribute('src');
                 }
                 if (texPreviewPlaceholder) {
                     texPreviewPlaceholder.classList.remove('hidden');
@@ -1152,6 +1179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (texPreviewImg) {
                 texPreviewImg.classList.add('hidden');
                 texPreviewImg.style.display = 'none';
+                texPreviewImg.removeAttribute('src');
             }
             if (texPreviewPlaceholder) {
                 texPreviewPlaceholder.classList.remove('hidden');
@@ -1455,6 +1483,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         logToConsole('Texture Selector: Inverted texture selection.', 'info');
     });
 
+    btnTexExportProfile?.addEventListener('click', async () => {
+        const excludedList = Array.from(excludedTexturesSet);
+        if (excludedList.length === 0) {
+            logToConsole('Profile Export: No textures are currently excluded.', 'warning');
+            inspectFooterInfo.innerText = 'No excluded textures to export.';
+            return;
+        }
+        const data = {
+            format: 'OpenSource2Roblox-Exclusion-Profile',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            sourceMap: currentInspection ? currentInspection.map : '',
+            excludedCount: excludedList.length,
+            excludedTextures: excludedList
+        };
+        const res = await window.api.exportExclusionProfile(data);
+        if (res && res.success) {
+            logToConsole(`Exclusion Profile exported: ${res.filePath} (${excludedList.length} textures)`, 'success');
+            inspectFooterInfo.innerText = `Exported profile (${excludedList.length} rules) to file.`;
+        } else if (res && res.error) {
+            logToConsole(`Failed to export exclusion profile: ${res.error}`, 'error');
+        }
+    });
+
+    btnTexImportProfile?.addEventListener('click', async () => {
+        const res = await window.api.importExclusionProfile();
+        if (!res || !res.success || !res.profile) return;
+        const profile = res.profile;
+        const list = profile.excludedTextures || [];
+        if (!Array.isArray(list) || list.length === 0) {
+            logToConsole('Profile Import: Selected file contains no excluded textures.', 'warning');
+            return;
+        }
+        let added = 0;
+        list.forEach(p => {
+            if (typeof p === 'string' && p.trim()) {
+                const norm = p.trim().toLowerCase();
+                if (!excludedTexturesSet.has(norm)) {
+                    excludedTexturesSet.add(norm);
+                    added++;
+                }
+            }
+        });
+        renderFolderTree();
+        renderBreadcrumbs();
+        renderFilteredInspectViews();
+        logToConsole(`Imported ${added} texture exclusions from profile: ${res.filePath}`, 'success');
+        inspectFooterInfo.innerText = `Loaded ${added} rules from profile. Total excluded: ${excludedTexturesSet.size}`;
+    });
+
     btnTexToggleInclude?.addEventListener('click', () => {
         if (!selectedTextureForPreview) return;
         const p = selectedTextureForPreview.path;
@@ -1565,8 +1643,181 @@ document.addEventListener('DOMContentLoaded', async () => {
                 closeInspector();
             } else if (modalModerationAlert && !modalModerationAlert.classList.contains('hidden')) {
                 closeModerationModal();
+            } else if (modalBatchQueue && !modalBatchQueue.classList.contains('hidden')) {
+                closeQueueModal();
             }
         }
+    });
+
+    // --- Batch Queue Logic & Execution ---
+    function updateQueueBadge() {
+        const count = batchQueue.filter(item => item.status === 'Pending').length;
+        if (queueCountBadge) {
+            queueCountBadge.innerText = batchQueue.length.toString();
+        }
+        if (queueFooterInfo) {
+            const completed = batchQueue.filter(i => i.status === 'Completed').length;
+            const failed = batchQueue.filter(i => i.status === 'Failed').length;
+            queueFooterInfo.innerText = `${batchQueue.length} maps in queue (${count} pending, ${completed} completed, ${failed} failed).`;
+        }
+    }
+
+    function renderBatchQueueUI() {
+        updateQueueBadge();
+        if (!queueTbody) return;
+        if (batchQueue.length === 0) {
+            queueTbody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 25px; color: var(--gs-text-dim);">
+                        Batch queue is currently empty. Click 'ADD TO QUEUE' to add maps.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        queueTbody.innerHTML = '';
+        batchQueue.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            let statusBadge = '';
+            if (item.status === 'Pending') {
+                statusBadge = '<span class="badge-tag" style="background:#3a4233; color:#ccc;">PENDING</span>';
+            } else if (item.status === 'Converting') {
+                statusBadge = '<span class="badge-tag" style="background:#5a5222; color:var(--gs-yellow);">CONVERTING</span>';
+            } else if (item.status === 'Completed') {
+                statusBadge = '<span class="badge-tag" style="background:#225522; color:#aaffaa;">COMPLETED</span>';
+            } else if (item.status === 'Failed') {
+                statusBadge = '<span class="badge-tag" style="background:#662222; color:#ffaaaa;">FAILED</span>';
+            }
+
+            tr.innerHTML = `
+                <td style="text-align: center; font-family: var(--font-mono); color: var(--gs-text-dim);">${index + 1}</td>
+                <td><strong style="color: var(--gs-text-highlight);">${item.mapName}</strong></td>
+                <td style="font-size: 11px; color: var(--gs-text-dim); font-family: var(--font-mono);">${item.gameDir}</td>
+                <td style="text-align: center;">${statusBadge}</td>
+                <td style="text-align: center;">
+                    <button class="gs-btn gs-btn-sm" data-queue-remove="${item.id}" ${isBatchRunning ? 'disabled' : ''} style="padding: 1px 6px;">[X]</button>
+                </td>
+            `;
+
+            const btnRemove = tr.querySelector(`[data-queue-remove="${item.id}"]`);
+            btnRemove?.addEventListener('click', () => {
+                const idx = batchQueue.findIndex(q => q.id === item.id);
+                if (idx !== -1) {
+                    batchQueue.splice(idx, 1);
+                    renderBatchQueueUI();
+                }
+            });
+
+            queueTbody.appendChild(tr);
+        });
+    }
+
+    function openQueueModal() {
+        renderBatchQueueUI();
+        modalBatchQueue?.classList.remove('hidden');
+    }
+
+    function closeQueueModal() {
+        modalBatchQueue?.classList.add('hidden');
+    }
+
+    btnCloseQueueModal?.addEventListener('click', closeQueueModal);
+    btnQueueClose?.addEventListener('click', closeQueueModal);
+    btnViewQueue?.addEventListener('click', openQueueModal);
+
+    btnAddQueue?.addEventListener('click', () => {
+        const gameDir = gameDirInput.value.trim();
+        const mapName = selectedMapInput.value.trim();
+        if (!gameDir || !mapName) {
+            logToConsole('Cannot add to queue: Select a game directory and a map first.', 'error');
+            statusText.innerText = 'Select a map first before adding to queue.';
+            return;
+        }
+
+        const exists = batchQueue.some(item =>
+            item.mapName.toLowerCase() === mapName.toLowerCase() &&
+            item.gameDir.toLowerCase() === gameDir.toLowerCase() &&
+            item.status === 'Pending'
+        );
+        if (exists) {
+            logToConsole(`Map '${mapName}' is already pending in the batch queue.`, 'warning');
+            return;
+        }
+
+        batchQueue.push({
+            id: Date.now() + Math.random(),
+            mapName,
+            gameDir,
+            status: 'Pending',
+            error: null
+        });
+
+        renderBatchQueueUI();
+        logToConsole(`Added '${mapName}' to batch queue (Total items: ${batchQueue.length}).`, 'info');
+        statusText.innerText = `Added '${mapName}' to queue (${batchQueue.length} total).`;
+    });
+
+    btnClearQueue?.addEventListener('click', () => {
+        if (isBatchRunning) return;
+        batchQueue.length = 0;
+        renderBatchQueueUI();
+        logToConsole('Batch conversion queue cleared.', 'info');
+    });
+
+    // Sequential Queue Runner
+    btnStartQueueProcess?.addEventListener('click', async () => {
+        if (isBatchRunning) return;
+        const pendingItems = batchQueue.filter(item => item.status === 'Pending');
+        if (pendingItems.length === 0) {
+            logToConsole('Batch Queue: No pending maps to convert.', 'warning');
+            return;
+        }
+
+        isBatchRunning = true;
+        btnStartQueueProcess.disabled = true;
+        btnClearQueue.disabled = true;
+        logToConsole(`Starting batch conversion for ${pendingItems.length} maps...`, 'cmd');
+
+        for (const item of batchQueue) {
+            if (item.status !== 'Pending') continue;
+
+            item.status = 'Converting';
+            renderBatchQueueUI();
+
+            selectedMapInput.value = item.mapName;
+            gameDirInput.value = item.gameDir;
+
+            logToConsole(`>>> [Batch Queue] Starting conversion: ${item.mapName} <<<`, 'info');
+
+            await new Promise((resolve) => {
+                let resolved = false;
+                const onExitCleanup = window.api.onEngineExit((data) => {
+                    if (resolved) return;
+                    resolved = true;
+                    if (onExitCleanup) onExitCleanup();
+
+                    if (data.code === 0 && !conversionHasErrors) {
+                        item.status = 'Completed';
+                        logToConsole(`>>> [Batch Queue] Successfully finished: ${item.mapName} <<<`, 'success');
+                    } else {
+                        item.status = 'Failed';
+                        item.error = `Exit code ${data.code}`;
+                        logToConsole(`>>> [Batch Queue] Failed conversion: ${item.mapName} (Exit code ${data.code}) <<<`, 'error');
+                    }
+                    renderBatchQueueUI();
+                    resolve();
+                });
+
+                btnConvertAction.click();
+            });
+        }
+
+        isBatchRunning = false;
+        btnStartQueueProcess.disabled = false;
+        btnClearQueue.disabled = false;
+        logToConsole('Batch conversion queue completed.', 'success');
+        statusText.innerText = 'Batch queue execution finished.';
     });
 
     // --- Roblox Credentials Testing ---

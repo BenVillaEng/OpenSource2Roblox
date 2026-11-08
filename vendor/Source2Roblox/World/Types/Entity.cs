@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -179,9 +179,9 @@ namespace Source2Roblox.World.Types
             get
             {
                 var origin = Get<Vector3>("origin");
-                var angles = Get<Vector3>("angles");
+                var angles = Get<Vector3>("angles") ?? new Vector3();
 
-                if (origin == null || angles == null)
+                if (origin == null)
                     return null;
 
                 return GetCFrame(origin, angles);

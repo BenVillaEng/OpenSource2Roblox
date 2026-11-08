@@ -77,6 +77,7 @@ namespace Source2Roblox.Geometry
                     Program.LogError(" When ready, click 'RESUME CONVERSION' in the application to continue.");
                     Program.LogError("================================================================================\n");
 
+                    RobloxAssetResolver.ResumeSignal.Reset();
                     bool resumed = RobloxAssetResolver.WaitForResume(TimeSpan.FromMinutes(20));
                     if (resumed)
                     {
@@ -112,6 +113,7 @@ namespace Source2Roblox.Geometry
                     Program.LogError(" When ready, click 'RESUME CONVERSION' in the application to continue.");
                     Program.LogError("================================================================================\n");
 
+                    RobloxAssetResolver.ResumeSignal.Reset();
                     bool resumed = RobloxAssetResolver.WaitForResume(TimeSpan.FromMinutes(20));
                     if (resumed)
                     {
@@ -336,7 +338,7 @@ namespace Source2Roblox.Geometry
                     CFrame = cf,
                 };
 
-                if (parentId >= 0)
+                if (parentId >= 0 && parentId < bones.Count)
                 {
                     var parent = bones[parentId];
                     bone.CFrame = parent.CFrame * cf;
@@ -390,19 +392,21 @@ namespace Source2Roblox.Geometry
 
                         byte weightLeft = 255;
 
-                        for (int i = 0; i < vert.NumBones; i++)
+                        for (int i = 0; i < vert.NumBones && i < boneIds.Length && i < weights.Length; i++)
                         {
                             var boneId = boneIds[i];
-                            var bone = bones[boneId];
+                            if (boneId >= 0 && boneId < bones.Count)
+                            {
+                                var bone = bones[boneId];
+                                var weight = weights[i];
+                                var rounded = (byte)(weight * 255f);
 
-                            var weight = weights[i];
-                            var rounded = (byte)(weight * 255f);
+                                if (i + 1 == vert.NumBones)
+                                    rounded = weightLeft;
 
-                            if (i + 1 == vert.NumBones)
-                                rounded = weightLeft;
-
-                            vert.Bones[bone] = rounded;
-                            weightLeft -= rounded;
+                                vert.Bones[bone] = rounded;
+                                weightLeft -= rounded;
+                            }
                         }
                     }
                     else
@@ -414,7 +418,7 @@ namespace Source2Roblox.Geometry
                     meshFile.Verts.Add(vert);
                 }
 
-                for (int i = 0; i < numIndices; i += 3)
+                for (int i = 0; i + 2 < numIndices && i + 2 < indices.Count; i += 3)
                 {
                     var face = new int[3]
                     {
@@ -912,6 +916,34 @@ namespace Source2Roblox.Geometry
                 }
             }
 
+            // Translate Source fog controller into native Roblox Atmosphere
+            var fogController = bsp.FindEntityByClass("env_fog_controller");
+            if (fogController != null)
+            {
+                var fogColor = fogController.TryGet<Ambient>("fogcolor");
+                var fogEnd = fogController.TryGet<float>("fogend");
+                var fogMaxDensity = fogController.TryGet<float>("fogmaxdensity") ?? 1.0f;
+
+                var atmosphere = new Atmosphere()
+                {
+                    Name = "SourceAtmosphere",
+                    Parent = lighting
+                };
+
+                if (fogColor != null)
+                {
+                    atmosphere.Color = fogColor.Value.Color;
+                    atmosphere.Decay = fogColor.Value.Color;
+                }
+
+                if (fogEnd != null && fogEnd.Value > 0)
+                {
+                    float density = Math.Clamp(1.0f - (fogEnd.Value / 12000f), 0.2f, 0.85f);
+                    atmosphere.Density = density * fogMaxDensity;
+                    atmosphere.Haze = 0.5f;
+                }
+            }
+
             var entityModels = new Dictionary<Entity, Model>();
             var materialSets = geometry.Materials;
 
@@ -1236,6 +1268,77 @@ namespace Source2Roblox.Geometry
                 renderTest.FieldOfView = fov.Value;
             }
 
+            // Translate player spawns into native Roblox SpawnLocations
+            var spawnClasses = new string[]
+            {
+                "info_player_start",
+                "info_player_deathmatch",
+                "info_player_terrorist",
+                "info_player_counterterrorist",
+                "info_player_teamspawn"
+            };
+
+            var spawns = bsp.FindEntitiesOfClass(spawnClasses).ToList();
+            if (spawns.Count > 0)
+            {
+                var spawnFolder = new Folder()
+                {
+                    Name = "Spawns",
+                    Parent = workspace
+                };
+
+                foreach (var sp in spawns)
+                {
+                    var spawnLoc = new SpawnLocation()
+                    {
+                        Name = sp.ClassName,
+                        CFrame = sp.CFrame ?? new CFrame(),
+                        Size = new Vector3(4, 1.2f, 4),
+                        Anchored = true,
+                        CanCollide = true,
+                        Neutral = true,
+                        Duration = 0,
+                        Parent = spawnFolder
+                    };
+
+                    if (sp.ClassName == "info_player_terrorist")
+                    {
+                        spawnLoc.Neutral = false;
+                        spawnLoc.TeamColor = BrickColor.FromName("Bright red");
+                    }
+                    else if (sp.ClassName == "info_player_counterterrorist")
+                    {
+                        spawnLoc.Neutral = false;
+                        spawnLoc.TeamColor = BrickColor.FromName("Bright blue");
+                    }
+                }
+            }
+
+            // Translate Source ladders into climbable TrussParts
+            var ladders = bsp.FindEntitiesOfClass("func_ladder").ToList();
+            if (ladders.Count > 0)
+            {
+                var ladderFolder = new Folder()
+                {
+                    Name = "Ladders",
+                    Parent = workspace
+                };
+
+                foreach (var ladder in ladders)
+                {
+                    var truss = new TrussPart()
+                    {
+                        Name = "Ladder",
+                        CFrame = ladder.CFrame ?? new CFrame(),
+                        Anchored = true,
+                        CanCollide = true,
+                        Transparency = 0.6f,
+                        Color = new Color3(0.8f, 0.8f, 0.8f),
+                        Parent = ladderFolder
+                    };
+                }
+            }
+
             var entityProps = bsp.FindEntitiesOfClass
             (
                 "prop_dynamic",
@@ -1386,8 +1489,27 @@ namespace Source2Roblox.Geometry
                     model.PivotTo(cf);
                     model.Parent = workspace;
 
+                    string propNameLower = (prop.Name ?? "").ToLowerInvariant();
+                    bool isFoliage = propNameLower.Contains("foliage") || propNameLower.Contains("tree") ||
+                                     propNameLower.Contains("leaves") || propNameLower.Contains("branch") ||
+                                     propNameLower.Contains("bush") || propNameLower.Contains("plant");
+
+                    bool isClutter = propNameLower.Contains("can") || propNameLower.Contains("bottle") ||
+                                     propNameLower.Contains("debris") || propNameLower.Contains("trash") ||
+                                     propNameLower.Contains("cup") || propNameLower.Contains("paper");
+
                     foreach (var part in model.GetDescendantsOfType<BasePart>())
                     {
+                        if (isFoliage)
+                        {
+                            part.CanCollide = false;
+                            part.CastShadow = false;
+                        }
+                        else if (isClutter)
+                        {
+                            part.CanTouch = false;
+                        }
+
                         var position = part.CFrame.Position;
                         partTree.CreateNode(position, part);
                     }
@@ -1423,11 +1545,30 @@ namespace Source2Roblox.Geometry
                 model.PivotTo(cf);
                 model.Parent = workspace;
 
-                if (prop.ClassName == "prop_dynamic")
-                    continue;
+                string entModelLower = (modelName ?? "").ToLowerInvariant();
+                bool isEntFoliage = entModelLower.Contains("foliage") || entModelLower.Contains("tree") ||
+                                    entModelLower.Contains("leaves") || entModelLower.Contains("branch") ||
+                                    entModelLower.Contains("bush") || entModelLower.Contains("plant");
+
+                bool isEntClutter = entModelLower.Contains("can") || entModelLower.Contains("bottle") ||
+                                    entModelLower.Contains("debris") || entModelLower.Contains("trash") ||
+                                    entModelLower.Contains("cup") || entModelLower.Contains("paper");
 
                 foreach (var part in model.GetDescendantsOfType<BasePart>())
                 {
+                    if (isEntFoliage)
+                    {
+                        part.CanCollide = false;
+                        part.CastShadow = false;
+                    }
+                    else if (isEntClutter)
+                    {
+                        part.CanTouch = false;
+                    }
+
+                    if (prop.ClassName == "prop_dynamic")
+                        continue;
+
                     part.Anchored = false;
 
                     if (primary != null)

@@ -475,6 +475,50 @@ ipcMain.handle('browse-file', async (event, filters) => {
     return null;
 });
 
+// Exclusion Profiles (Export & Import)
+ipcMain.handle('export-exclusion-profile', async (event, data) => {
+    if (!mainWindow) return { success: false, error: 'No main window' };
+    const res = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Texture Exclusion Profile',
+        defaultPath: 'exclusion-profile.json',
+        filters: [
+            { name: 'JSON Profiles (*.json)', extensions: ['json'] },
+            { name: 'All Files (*.*)', extensions: ['*'] }
+        ]
+    });
+    if (res.canceled || !res.filePath) {
+        return { success: false, canceled: true };
+    }
+    try {
+        fs.writeFileSync(res.filePath, JSON.stringify(data, null, 2), 'utf-8');
+        return { success: true, filePath: res.filePath };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('import-exclusion-profile', async () => {
+    if (!mainWindow) return { success: false, error: 'No main window' };
+    const res = await dialog.showOpenDialog(mainWindow, {
+        title: 'Import Texture Exclusion Profile',
+        properties: ['openFile'],
+        filters: [
+            { name: 'JSON Profiles (*.json)', extensions: ['json'] },
+            { name: 'All Files (*.*)', extensions: ['*'] }
+        ]
+    });
+    if (res.canceled || !res.filePaths || res.filePaths.length === 0) {
+        return { success: false, canceled: true };
+    }
+    try {
+        const content = fs.readFileSync(res.filePaths[0], 'utf-8');
+        const parsed = JSON.parse(content);
+        return { success: true, filePath: res.filePaths[0], profile: parsed };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
 // Roblox Credentials Validation
 ipcMain.handle('verify-roblox-credentials', async (event, creds) => {
     const { apiKey, creatorType, creatorId } = creds;

@@ -777,7 +777,7 @@ namespace Source2Roblox.Geometry
                     if (i + 1 == faces.Count)
                         shouldSplit = true;
 
-                    if (i >= lods[nextLod])
+                    if (lods != null && nextLod < lods.Count && i >= lods[nextLod])
                     {
                         shouldSplit = true;
                         nextLod++;
@@ -791,7 +791,7 @@ namespace Source2Roblox.Geometry
                         {
                             ushort index = 0xFFFF;
                             
-                            if (b < subset.NumBones)
+                            if (b < subset.NumBones && b < bones.Count)
                             {
                                 var bone = bones[b];
                                 index = (ushort)Bones.IndexOf(bone);
@@ -833,7 +833,7 @@ namespace Source2Roblox.Geometry
                     var faceSet = new List<RobloxVertex[]>();
                     var duplicates = new Dictionary<RobloxVertex, RobloxVertex>();
 
-                    for (int i = facesBegin; i < facesEnd; i++)
+                    for (int i = facesBegin; i < facesEnd && i < faces.Count; i++)
                     {
                         var face = faces[i];
                         var newFace = new RobloxVertex[3];

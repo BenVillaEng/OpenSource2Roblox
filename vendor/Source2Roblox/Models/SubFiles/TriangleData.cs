@@ -85,9 +85,15 @@ namespace Source2Roblox.Models
 
         public ushort GetMeshIndex(int i)
         {
+            if (Indices == null || i < 0 || i >= Indices.Length)
+                return 0;
+
             var index = Indices[i];
+            if (Vertices == null || index < 0 || index >= Vertices.Length)
+                return 0;
+
             var vert = Vertices[index];
-            return vert.OrigMeshVertId;
+            return vert != null ? vert.OrigMeshVertId : (ushort)0;
         }
     }
 

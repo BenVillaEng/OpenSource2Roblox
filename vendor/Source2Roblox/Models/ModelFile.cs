@@ -359,11 +359,15 @@ namespace Source2Roblox.Models
 
                             for (int i = 0; i < numSkinFamilies; i++)
                             {
-                                int matIndex = skinArray[i * numSkinRef + skinRefIndex];
+                                int skinIdx = i * numSkinRef + skinRefIndex;
+                                int matIndex = (skinArray != null && skinIdx >= 0 && skinIdx < skinArray.Count) ? skinArray[skinIdx] : 0;
 
                                 try
                                 {
-                                    matPaths[i] = lodMaterialPaths[LOD][matIndex];
+                                    if (lodMaterialPaths[LOD] != null && matIndex >= 0 && matIndex < lodMaterialPaths[LOD].Length)
+                                        matPaths[i] = lodMaterialPaths[LOD][matIndex];
+                                    else
+                                        matPaths[i] = "";
                                 }
                                 catch
                                 {
@@ -525,11 +529,21 @@ namespace Source2Roblox.Models
 
         public List<MeshBuffer> GetMeshes(int bodyPartId = 0, int skinId = 0, int modelId = 0, int lodId = 0)
         {
+            if (TriangleData?.BodyParts == null || bodyPartId < 0 || bodyPartId >= TriangleData.BodyParts.Length)
+                return new List<MeshBuffer>();
+
             StudioBodyPart bodyPart = TriangleData.BodyParts[bodyPartId];
+            if (bodyPart?.Models == null || modelId < 0 || modelId >= bodyPart.Models.Length)
+                return new List<MeshBuffer>();
+
             StudioModel model = bodyPart.Models[modelId];
+            if (model?.LODs == null || lodId < 0 || lodId >= model.LODs.Length)
+                return new List<MeshBuffer>();
 
             StudioLOD lod = model.LODs[lodId];
-            StudioMesh[] meshes = lod.Meshes;
+            StudioMesh[] meshes = lod?.Meshes;
+            if (meshes == null)
+                return new List<MeshBuffer>();
             
             var lodData = new VertexData(VertexData, lodId);
             var modelData = new ModelVertexData(model, lodData);
@@ -540,8 +554,10 @@ namespace Source2Roblox.Models
                 var meshData = new MeshVertexData(mesh, modelData);
                 string matPath;
 
-                if (skinId >= mesh.Materials.Length)
-                    matPath = mesh.Materials.First();
+                if (mesh.Materials == null || mesh.Materials.Length == 0)
+                    matPath = "";
+                else if (skinId < 0 || skinId >= mesh.Materials.Length)
+                    matPath = mesh.Materials[0];
                 else
                     matPath = mesh.Materials[skinId];
 

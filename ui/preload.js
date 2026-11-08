@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
     previewTexture: (gameDir, texturePath, mapName) => ipcRenderer.invoke('preview-texture', { gameDir, texturePath, mapName }),
     browseFolder: (title) => ipcRenderer.invoke('browse-folder', title),
     browseFile: (filters) => ipcRenderer.invoke('browse-file', filters),
+    exportExclusionProfile: (data) => ipcRenderer.invoke('export-exclusion-profile', data),
+    importExclusionProfile: () => ipcRenderer.invoke('import-exclusion-profile'),
 
     // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),

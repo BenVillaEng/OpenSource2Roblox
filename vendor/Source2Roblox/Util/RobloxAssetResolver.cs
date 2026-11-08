@@ -110,7 +110,6 @@ namespace Source2Roblox.Util
 
         public static bool WaitForResume(TimeSpan timeout)
         {
-            ResumeSignal.Reset();
             return ResumeSignal.Wait(timeout);
         }
 

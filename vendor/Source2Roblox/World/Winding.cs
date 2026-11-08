@@ -106,8 +106,11 @@ namespace Source2Roblox.World
 
         public Winding Clip(Vector3 norm, float dist)
         {
-            var dists  = new float[MAX_POINTS_ON_WINDING];
-            var sides  = new int[MAX_POINTS_ON_WINDING];
+            if (Count == 0)
+                return null;
+
+            var dists  = new float[Count + 1];
+            var sides  = new int[Count + 1];
             var counts = new int[3];
 
             for (int i = 0; i < Count; i++)

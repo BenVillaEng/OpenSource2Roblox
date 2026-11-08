@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -246,6 +246,9 @@ namespace Source2Roblox.Models
         public StudioVertex GetVertex(int i)
         {
             int index = GetGlobalVertexIndex(i);
+            if (VertexData.Vertices == null || index < 0 || index >= VertexData.Vertices.Length)
+                return new StudioVertex();
+
             return VertexData.Vertices[index];
         }
     }
