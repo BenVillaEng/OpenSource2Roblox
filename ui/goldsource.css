@@ -609,10 +609,10 @@ body {
 }
 
 .gs-modal-window {
-    width: 960px;
-    max-width: 95vw;
-    height: 620px;
-    max-height: 92vh;
+    width: 1060px;
+    max-width: 96vw;
+    height: 680px;
+    max-height: 94vh;
     background-color: var(--gs-bg);
     border: 2px solid;
     border-color: var(--gs-border-light) var(--gs-border-dark) var(--gs-border-dark) var(--gs-border-light);
@@ -829,6 +829,9 @@ body {
 
 .gs-inspect-loading.hidden {
     display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
 }
 
 .gs-spinner-gold {
@@ -979,10 +982,181 @@ body.crt-phosphor-mode::after {
 
 .gs-tex-split-layout {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex: 1;
     min-height: 0;
     height: 100%;
+}
+
+/* Left Pane: Directory Tree */
+.gs-tex-tree-pane {
+    width: 220px;
+    min-width: 170px;
+    max-width: 300px;
+    background-color: var(--gs-bg-panel);
+    border: 1px solid var(--gs-border-dark);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.gs-tex-tree-header {
+    background-color: #2b3325;
+    padding: 3px 6px;
+    font-size: 10px;
+    font-weight: bold;
+    color: var(--gs-yellow);
+    border-bottom: 1px solid var(--gs-border-dark);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+
+.gs-tex-tree-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 2px 0;
+    font-family: var(--font-primary);
+    font-size: 11px;
+    user-select: none;
+    background-color: #22291e;
+}
+
+/* Directory Tree Nodes */
+.gs-tree-node {
+    display: flex;
+    align-items: center;
+    padding: 2px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    line-height: 16px;
+}
+
+.gs-tree-node:hover {
+    background-color: #384332;
+    color: #ffffff;
+}
+
+.gs-tree-node.selected {
+    background-color: #4a5a41;
+    border-color: #7d966e;
+    color: var(--gs-yellow);
+    font-weight: bold;
+}
+
+.gs-tree-expander {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--gs-text-dim);
+    margin-right: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.gs-tree-expander:hover {
+    color: var(--gs-yellow);
+}
+
+.gs-tree-checkbox {
+    margin: 0 4px 0 0;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.gs-tree-icon {
+    margin-right: 4px;
+    color: var(--gs-yellow);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+}
+
+.gs-tree-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gs-tree-badge {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--gs-text-dim);
+    margin-left: 4px;
+    padding: 0 3px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 2px;
+}
+
+.gs-tree-badge.risky {
+    color: #ff9999;
+    background: #4a1f1f;
+    font-weight: bold;
+}
+
+/* Middle Pane: File Table & Breadcrumb Bar */
+.gs-tex-table-pane {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.gs-tex-breadcrumb-bar {
+    background-color: #2b3325;
+    border: 1px solid var(--gs-border-dark);
+    border-bottom: none;
+    padding: 3px 6px;
+    font-size: 11px;
+    color: var(--gs-text);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.crumb-path {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.crumb-segment {
+    color: var(--gs-yellow);
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+.crumb-segment:hover {
+    color: #ffffff;
+}
+
+.crumb-separator {
+    color: var(--gs-text-dim);
+}
+
+.crumb-count {
+    font-size: 10px;
+    color: var(--gs-text-dim);
+    font-family: var(--font-mono);
+    white-space: nowrap;
 }
 
 .gs-tex-table-container {
@@ -993,7 +1167,7 @@ body.crt-phosphor-mode::after {
 }
 
 .gs-tex-preview-pane {
-    width: 320px;
+    width: 310px;
     background-color: var(--gs-bg-panel);
     border: 2px solid;
     border-color: var(--gs-border-dark) var(--gs-border-light) var(--gs-border-light) var(--gs-border-dark);
@@ -1003,6 +1177,8 @@ body.crt-phosphor-mode::after {
     gap: 8px;
     box-sizing: border-box;
     overflow-y: auto;
+    flex-shrink: 0;
+}
 }
 
 .gs-tex-preview-header {

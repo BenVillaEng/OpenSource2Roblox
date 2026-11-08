@@ -3,6 +3,8 @@ bin/
 obj/
 dist/
 release/
+release_single/
+ui/engine/
 OpenSource2Roblox-v2.0-GoldSource-win-x64/
 *.log
 *.zip

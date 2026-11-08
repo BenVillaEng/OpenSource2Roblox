@@ -667,6 +667,9 @@ ipcMain.handle('start-conversion', async (event, config) => {
 ipcMain.handle('cancel-conversion', async () => {
     if (activeEngineProcess) {
         try {
+            if (activeEngineProcess.stdin && !activeEngineProcess.killed) {
+                try { activeEngineProcess.stdin.write("CANCEL\n"); } catch {}
+            }
             activeEngineProcess.kill();
             activeEngineProcess = null;
             return { success: true };
@@ -675,6 +678,19 @@ ipcMain.handle('cancel-conversion', async () => {
         }
     }
     return { success: true };
+});
+
+// Resume Conversion after Moderation Check
+ipcMain.handle('resume-conversion', async () => {
+    if (activeEngineProcess && activeEngineProcess.stdin && !activeEngineProcess.killed) {
+        try {
+            activeEngineProcess.stdin.write("RESUME\n");
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    }
+    return { success: false, error: 'Engine process is not currently running or paused.' };
 });
 
 // Open Output Directory

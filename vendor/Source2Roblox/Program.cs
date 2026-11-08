@@ -154,6 +154,30 @@ namespace Source2Roblox
                 return 0;
             }
 
+            // Start background thread to listen for stdin commands (RESUME, CANCEL) from UI
+            Task.Run(() =>
+            {
+                try
+                {
+                    string? line;
+                    while ((line = Console.ReadLine()) != null)
+                    {
+                        string cmd = line.Trim().ToUpperInvariant();
+                        if (cmd == "RESUME")
+                        {
+                            RobloxAssetResolver.SignalResume();
+                            Emit("raw", "[Engine] Received RESUME signal from UI. Continuing conversion...");
+                        }
+                        else if (cmd == "CANCEL")
+                        {
+                            RobloxAssetResolver.ResetModerationState();
+                            Emit("raw", "[Engine] Received CANCEL signal from UI.");
+                        }
+                    }
+                }
+                catch {}
+            });
+
             try
             {
                 string jobArgs = ReadJobArgs(args);
@@ -874,7 +898,79 @@ namespace Source2Roblox
             return false;
         }
 
-        public static TextureRiskResult AssessTextureRisk(string path)
+        public static double AnalyzeSkinPercentage(System.Drawing.Bitmap bitmap)
+        {
+            if (bitmap == null || bitmap.Width <= 0 || bitmap.Height <= 0)
+                return 0.0;
+
+            int totalPixels = 0;
+            int skinPixels = 0;
+            System.Drawing.Imaging.BitmapData data = null;
+
+            try
+            {
+                data = bitmap.LockBits(
+                    new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height),
+                    System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                    System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+                int width = bitmap.Width;
+                int height = bitmap.Height;
+                int stride = data.Stride;
+                IntPtr scan0 = data.Scan0;
+
+                unsafe
+                {
+                    byte* ptr = (byte*)scan0.ToPointer();
+                    int step = 1;
+                    if (width * height > 256 * 256) step = 2;
+                    if (width * height > 512 * 512) step = 4;
+
+                    for (int y = 0; y < height; y += step)
+                    {
+                        byte* row = ptr + (y * stride);
+                        for (int x = 0; x < width; x += step)
+                        {
+                            int offset = x * 4;
+                            byte b = row[offset + 0];
+                            byte g = row[offset + 1];
+                            byte r = row[offset + 2];
+                            byte a = row[offset + 3];
+
+                            if (a < 64) continue;
+                            totalPixels++;
+
+                            // YCbCr skin chrominance cluster:
+                            double Y  =  0.299 * r + 0.587 * g + 0.114 * b;
+                            double Cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128.0;
+                            double Cr =  0.5 * r - 0.418688 * g - 0.081312 * b + 128.0;
+
+                            if (Y >= 50 && Cb >= 77 && Cb <= 127 && Cr >= 133 && Cr <= 173)
+                            {
+                                if (r > g && r > b && (r - g) >= 12)
+                                {
+                                    skinPixels++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                return 0.0;
+            }
+            finally
+            {
+                if (data != null)
+                    bitmap.UnlockBits(data);
+            }
+
+            if (totalPixels == 0) return 0.0;
+            return ((double)skinPixels / totalPixels) * 100.0;
+        }
+
+        public static TextureRiskResult AssessTextureRisk(string path, double skinPercentage = 0.0)
         {
             var result = new TextureRiskResult();
             if (string.IsNullOrWhiteSpace(path))
@@ -907,17 +1003,20 @@ namespace Source2Roblox
             // 3. Medium/High: Alcohol / Drugs / Tobacco
             string[] drugKeywords = new[]
             {
-                "beer", "liquor", "wine", "vodka", "whiskey", "whisky", "rum", "tequila", "alcohol",
-                "bar_sign", "pub_sign", "cigar", "cigarette", "tobacco", "cannabis",
-                "marijuana", "joint", "bong", "pills", "syringe", "cocaine", "meth",
+                "beer", "liquor", "wine", "vodka", "whiskey", "whisky", "tequila", "alcohol",
+                "bar_sign", "pub_sign", "cigarette", "tobacco", "cannabis",
+                "marijuana", "syringe", "cocaine",
                 "heroin", "budweiser", "heineken", "corona", "jackdaniels", "ashtray",
-                "pack_smokes", "hookah", "vape"
+                "pack_smokes", "hookah"
             };
+
+            // Boundary-sensitive drug keywords (prevent metal_drum, pipe_joint, spills from false positives)
+            string[] boundaryDrugKeywords = new[] { "rum", "joint", "pills", "meth", "cigar", "bong", "vape", "pot" };
 
             // 4. Critical: Hate Speech / Extremist
             string[] hateKeywords = new[]
             {
-                "nazi", "swastika", "hitler", "ss_", "terrorist", "kkk", "fascist", "aryan"
+                "nazi", "swastika", "hitler", "terrorist", "kkk", "fascist", "aryan"
             };
 
             var matchedReasons = new List<string>();
@@ -969,7 +1068,7 @@ namespace Source2Roblox
                 result.Score = Math.Max(result.Score, 85);
             }
 
-            // Check drug keywords
+            // Check drug keywords (unambiguous)
             foreach (var kw in drugKeywords)
             {
                 if (lower.Contains(kw))
@@ -981,8 +1080,23 @@ namespace Source2Roblox
                 }
             }
 
+            // Check boundary-sensitive drug keywords
+            if (result.Score < 75)
+            {
+                foreach (var kw in boundaryDrugKeywords)
+                {
+                    if (HasWord(lower, kw))
+                    {
+                        result.Tags.Add("Alcohol/Drugs");
+                        matchedReasons.Add($"Alcohol/Drugs keyword ('{kw}')");
+                        result.Score = Math.Max(result.Score, 75);
+                        break;
+                    }
+                }
+            }
+
             // Check weed (with environmental garden weeds exclusion)
-            if (result.Score < 75 && HasWord(lower, "weed"))
+            if (result.Score < 75 && (HasWord(lower, "weed") || HasWord(lower, "weeds")))
             {
                 bool isGardenWeed = lower.Contains("blend") || lower.Contains("nature") ||
                                    lower.Contains("foliage") || lower.Contains("ground") ||
@@ -1009,7 +1123,29 @@ namespace Source2Roblox
                 }
             }
 
-            // 5. Informational categorization (Not inherently risky!)
+            // Specific check for SS hate symbol (must not match grass_, glass_, moss_, brass_)
+            if (HasWord(lower, "ss") || lower.StartsWith("ss_") || lower.Contains("/ss_"))
+            {
+                result.Tags.Add("Controversial");
+                matchedReasons.Add("Extremist symbol ('ss')");
+                result.Score = Math.Max(result.Score, 99);
+            }
+
+            // 5. Visual Flesh / Skin Detection (catches innocent-looking pornographic posters e.g. poster03.vtf)
+            if (skinPercentage >= 20.0)
+            {
+                result.Tags.Add("Exposed Skin/Nudity");
+                matchedReasons.Add($"Visual scan detected {skinPercentage:0.#}% exposed human flesh/skin tone coverage");
+                result.Score = Math.Max(result.Score, 92);
+            }
+            else if (skinPercentage >= 10.0 && result.Score < 75)
+            {
+                result.Tags.Add("Possible Flesh/Skin");
+                matchedReasons.Add($"Visual scan detected {skinPercentage:0.#}% skin tone");
+                result.Score = Math.Max(result.Score, 75);
+            }
+
+            // 6. Informational categorization (Not inherently risky!)
             if (lower.Contains("poster") || lower.Contains("spray") || lower.Contains("graffiti") ||
                 lower.StartsWith("decals/") || lower.Contains("/decals/"))
             {
@@ -1158,7 +1294,15 @@ namespace Source2Roblox
                     string previewFile = Path.Combine(outputRoot, $"{safeName}_preview.png");
                     img.Save(previewFile, System.Drawing.Imaging.ImageFormat.Png);
 
-                    var risk = AssessTextureRisk(texturePath);
+                    double skinPercentage = 0.0;
+                    try
+                    {
+                        if (img is System.Drawing.Bitmap bmp)
+                            skinPercentage = AnalyzeSkinPercentage(bmp);
+                    }
+                    catch {}
+
+                    var risk = AssessTextureRisk(texturePath, skinPercentage);
 
                     Emit("texture_preview", $"Generated preview for {safeName}.", new
                     {
@@ -1170,6 +1314,7 @@ namespace Source2Roblox
                         height = img.Height,
                         format = vtf.Format.ToString(),
                         mipmaps = vtf.NumMipmaps,
+                        skinPercentage = Math.Round(skinPercentage, 1),
                         riskLevel = risk.Level,
                         riskScore = risk.Score,
                         riskTags = risk.Tags,

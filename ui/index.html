@@ -12,7 +12,7 @@
         <header class="gs-titlebar">
             <div class="gs-title">
                 <span class="gs-lambda" id="title-lambda" style="cursor: pointer;" title="Black Mesa Research Facility">λ</span>
-                <span id="window-title-text">OPTIONS: OpenSource2Roblox v2.2 - GoldSource Edition</span>
+                <span id="window-title-text">OPTIONS: OpenSource2Roblox v2.5 - GoldSource Edition</span>
             </div>
             <div class="gs-window-controls">
                 <button class="gs-win-btn" id="btn-minimize" title="Minimize">_</button>
@@ -411,23 +411,43 @@
                             </div>
                         </div>
 
-                        <!-- Split View: Table on Left, Live Preview & Risk Card on Right -->
+                        <!-- Split View: 3-Pane Windows Explorer Layout (Folders, File Table, Preview) -->
                         <div class="gs-tex-split-layout">
-                            <div class="gs-listbox gs-tex-table-container">
-                                <table class="gs-table" id="table-textures-list">
-                                    <thead>
-                                        <tr>
-                                            <th style="width: 7%; text-align: center;">
-                                                <input type="checkbox" id="tex-master-checkbox" title="Toggle Select All" checked>
-                                            </th>
-                                            <th style="width: 23%;">RISK LEVEL</th>
-                                            <th style="width: 18%;">CATEGORY</th>
-                                            <th style="width: 52%;">MATERIAL / TEXTURE PATH</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="inspect-textures-tbody">
-                                    </tbody>
-                                </table>
+                            <!-- Left Pane: Directory Tree -->
+                            <div class="gs-tex-tree-pane" id="tex-tree-pane">
+                                <div class="gs-tex-tree-header">
+                                    <span>DIRECTORIES</span>
+                                    <button class="gs-btn gs-btn-sm" id="btn-tree-collapse-all" title="Collapse all folders" style="padding: 0 4px; font-size: 9px; line-height: 14px;">[-]</button>
+                                </div>
+                                <div class="gs-tex-tree-content" id="tex-folder-tree">
+                                    <!-- Tree nodes rendered by renderer.js -->
+                                </div>
+                            </div>
+
+                            <!-- Middle Pane: Breadcrumb Bar & File Table -->
+                            <div class="gs-tex-table-pane" id="tex-table-pane">
+                                <div class="gs-tex-breadcrumb-bar" id="tex-breadcrumb-bar">
+                                    <div class="crumb-path" id="crumb-path">
+                                        <span class="crumb-segment" data-folder="">materials/</span>
+                                    </div>
+                                    <span class="crumb-count" id="crumb-folder-count">0 items</span>
+                                </div>
+                                <div class="gs-listbox gs-tex-table-container">
+                                    <table class="gs-table" id="table-textures-list">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 7%; text-align: center;">
+                                                    <input type="checkbox" id="tex-master-checkbox" title="Toggle Select All in View" checked>
+                                                </th>
+                                                <th style="width: 22%;">RISK LEVEL</th>
+                                                <th style="width: 17%;">CATEGORY</th>
+                                                <th style="width: 54%;">MATERIAL / TEXTURE PATH</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="inspect-textures-tbody">
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                             <!-- Right-Side Texture Preview & Risk Inspector Pane -->

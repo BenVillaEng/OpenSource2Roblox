@@ -93,6 +93,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const texPreviewRiskReason = document.getElementById('tex-preview-risk-reason');
     const btnTexToggleInclude = document.getElementById('btn-tex-toggle-include');
 
+    // Directory Tree Elements & State
+    const texFolderTree = document.getElementById('tex-folder-tree');
+    const btnTreeCollapseAll = document.getElementById('btn-tree-collapse-all');
+    const crumbPath = document.getElementById('crumb-path');
+    const crumbFolderCount = document.getElementById('crumb-folder-count');
+    let activeFolderFilter = '';
+    const expandedFolders = new Set(['']);
+    let cachedFolderTree = null;
+
     const excludedTexturesSet = new Set();
     let activeTexPillFilter = 'all'; // 'all', 'risky', 'excluded'
     let selectedTextureForPreview = null;
@@ -428,16 +437,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         modalMapInspect.classList.remove('hidden');
         inspectLoading.classList.remove('hidden');
+        inspectLoading.style.display = 'flex';
 
         try {
             const res = await window.api.inspectMap(gameDir, targetMap);
             inspectLoading.classList.add('hidden');
+            inspectLoading.style.display = 'none';
 
             if (!res.success) {
                 logToConsole(`Failed to inspect map '${mapBaseName}': ${res.error}`, 'error');
                 inspectFooterInfo.innerHTML = `<span style="color:var(--gs-red);">Error: ${res.error}</span>`;
                 inspectModelsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--gs-red);">Failed to inspect map: ${res.error}</td></tr>`;
-                inspectTexturesTbody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:20px; color:var(--gs-red);">Failed to inspect map: ${res.error}</td></tr>`;
+                inspectTexturesTbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--gs-red);">Failed to inspect map: ${res.error}</td></tr>`;
                 inspectEntitiesTbody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:20px; color:var(--gs-red);">Failed to inspect map: ${res.error}</td></tr>`;
                 return;
             }
@@ -453,6 +464,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 if (t.risk.isRisky) totalRiskyCount++;
             });
+
+            // Build Windows Explorer Directory Tree
+            activeFolderFilter = '';
+            expandedFolders.clear();
+            expandedFolders.add('');
+            const treeRoot = buildTextureFolderTree(currentInspection.textures);
+            treeRoot.children.forEach(child => expandedFolders.add(child.fullPath));
+            renderFolderTree();
+            renderBreadcrumbs();
 
             // Populate Metrics Ribbon
             const s = currentInspection.summary;
@@ -505,6 +525,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } finally {
             isInspectingMap = false;
             inspectLoading.classList.add('hidden');
+            inspectLoading.style.display = 'none';
         }
     }
 
@@ -521,7 +542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return re.test(text);
     }
 
-    function assessTextureRisk(path) {
+    function assessTextureRisk(path, skinPercentage = 0) {
         if (!path) return { level: 'CLEAN', score: 0, tags: [], reason: 'Safe', isRisky: false };
         const lower = path.toLowerCase().replace(/\\/g, '/');
 
@@ -535,21 +556,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const boundaryNudity = ['ass', 'butt', 'cock', 'dick', 'tit', 'tits', 'bra'];
 
         const goreKeywords = [
-            'gore', 'blood', 'bloody', 'guts', 'flesh', 'gib', 'gibs', 'corpse', 'dead_body',
+            'gore', 'bloody', 'guts', 'flesh', 'gib', 'gibs', 'corpse', 'dead_body',
             'deadbody', 'mutilat', 'dismember', 'severed', 'wound', 'entrails', 'viscera',
             'slaughter', 'decapitat', 'splatter', 'murder', 'carnage', 'hanging_body',
             'charred_corpse', 'severed_limb'
         ];
 
         const drugKeywords = [
-            'beer', 'liquor', 'wine', 'vodka', 'whiskey', 'whisky', 'rum', 'tequila', 'alcohol',
-            'bar_sign', 'pub_sign', 'cigar', 'cigarette', 'tobacco', 'cannabis',
-            'marijuana', 'joint', 'bong', 'pills', 'syringe', 'cocaine', 'meth',
+            'beer', 'liquor', 'wine', 'vodka', 'whiskey', 'whisky', 'tequila', 'alcohol',
+            'bar_sign', 'pub_sign', 'cigarette', 'tobacco', 'cannabis',
+            'marijuana', 'syringe', 'cocaine',
             'heroin', 'budweiser', 'heineken', 'corona', 'jackdaniels', 'ashtray',
-            'pack_smokes', 'hookah', 'vape'
+            'pack_smokes', 'hookah'
         ];
 
-        const hateKeywords = ['nazi', 'swastika', 'hitler', 'ss_', 'terrorist', 'kkk', 'fascist', 'aryan'];
+        const boundaryDrugKeywords = ['rum', 'joint', 'pills', 'meth', 'cigar', 'bong', 'vape', 'pot'];
+        const hateKeywords = ['nazi', 'swastika', 'hitler', 'terrorist', 'kkk', 'fascist', 'aryan'];
 
         let score = 0;
         const tags = [];
@@ -599,7 +621,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (score < 75 && hasWord(lower, 'weed')) {
+        if (score < 75) {
+            for (const kw of boundaryDrugKeywords) {
+                if (hasWord(lower, kw)) {
+                    tags.push('Alcohol/Drugs');
+                    reasons.push(`Alcohol/Drugs keyword ('${kw}')`);
+                    score = Math.max(score, 75);
+                    break;
+                }
+            }
+        }
+
+        if (score < 75 && (hasWord(lower, 'weed') || hasWord(lower, 'weeds'))) {
             const isGardenWeed = lower.includes('blend') || lower.includes('nature') ||
                                 lower.includes('foliage') || lower.includes('ground') ||
                                 lower.includes('path') || lower.includes('grass') ||
@@ -619,6 +652,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 score = Math.max(score, 99);
                 break;
             }
+        }
+
+        if (hasWord(lower, 'ss') || lower.startsWith('ss_') || lower.includes('/ss_')) {
+            tags.push('Controversial');
+            reasons.push("Extremist symbol ('ss')");
+            score = Math.max(score, 99);
+        }
+
+        // Visual Flesh / Skin Detection (catches innocent-named NSFW images)
+        if (skinPercentage >= 20.0) {
+            tags.push('Exposed Skin/Nudity');
+            reasons.push(`Visual scan detected ${skinPercentage.toFixed(1)}% human flesh/skin tone coverage`);
+            score = Math.max(score, 92);
+        } else if (skinPercentage >= 10.0 && score < 75) {
+            tags.push('Possible Flesh/Skin');
+            reasons.push(`Visual scan detected ${skinPercentage.toFixed(1)}% skin tone`);
+            score = Math.max(score, 75);
         }
 
         if (lower.includes('poster') || lower.includes('spray') || lower.includes('graffiti') ||
@@ -652,8 +702,304 @@ document.addEventListener('DOMContentLoaded', async () => {
             score,
             tags,
             reason,
-            isRisky: score >= 70
+            isRisky: score >= 70,
+            skinPercentage
         };
+    }
+
+    function scanImageSkinCoverage(img) {
+        if (!img || !img.naturalWidth || !img.naturalHeight) return 0;
+        try {
+            const canvas = document.createElement('canvas');
+            const maxDim = 128;
+            let w = img.naturalWidth;
+            let h = img.naturalHeight;
+            if (w <= 0 || h <= 0) return 0;
+            if (w > maxDim || h > maxDim) {
+                const ratio = Math.min(maxDim / w, maxDim / h);
+                w = Math.max(1, Math.round(w * ratio));
+                h = Math.max(1, Math.round(h * ratio));
+            }
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            let total = 0;
+            let skin = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const a = data[i + 3];
+                if (a < 64) continue;
+                total++;
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                // YCbCr skin chrominance cluster
+                const Y  =  0.299 * r + 0.587 * g + 0.114 * b;
+                const Cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128.0;
+                const Cr =  0.5 * r - 0.418688 * g - 0.081312 * b + 128.0;
+
+                if (Y >= 50 && Cb >= 77 && Cb <= 127 && Cr >= 133 && Cr <= 173) {
+                    if (r > g && r > b && (r - g) >= 12) {
+                        skin++;
+                    }
+                }
+            }
+            if (total === 0) return 0;
+            return (skin / total) * 100;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    // Windows Explorer Folder Tree for Textures
+    function buildTextureFolderTree(textures) {
+        const root = {
+            name: 'materials',
+            fullPath: '',
+            depth: 0,
+            children: new Map(),
+            textures: [],
+            directTextures: [],
+            riskyCount: 0
+        };
+
+        if (!textures || textures.length === 0) {
+            cachedFolderTree = root;
+            return root;
+        }
+
+        textures.forEach(t => {
+            const p = (t.path || '').replace(/\\/g, '/');
+            root.textures.push(t);
+            if (t.risk && t.risk.isRisky) root.riskyCount++;
+
+            const lastSlash = p.lastIndexOf('/');
+            if (lastSlash === -1) {
+                root.directTextures.push(t);
+                return;
+            }
+
+            const dirPart = p.substring(0, lastSlash);
+            const segments = dirPart.split('/');
+            let curr = root;
+            let currentPath = '';
+
+            for (let i = 0; i < segments.length; i++) {
+                const seg = segments[i];
+                currentPath = currentPath ? `${currentPath}/${seg}` : seg;
+
+                if (!curr.children.has(seg)) {
+                    curr.children.set(seg, {
+                        name: seg,
+                        fullPath: currentPath,
+                        depth: i + 1,
+                        children: new Map(),
+                        textures: [],
+                        directTextures: [],
+                        riskyCount: 0
+                    });
+                }
+                curr = curr.children.get(seg);
+                curr.textures.push(t);
+                if (t.risk && t.risk.isRisky) curr.riskyCount++;
+            }
+            curr.directTextures.push(t);
+        });
+
+        cachedFolderTree = root;
+        return root;
+    }
+
+    function renderFolderTree() {
+        if (!texFolderTree || !cachedFolderTree) return;
+        texFolderTree.innerHTML = '';
+
+        function renderNode(node) {
+            const row = document.createElement('div');
+            row.className = 'gs-tree-node';
+            if (activeFolderFilter === node.fullPath) {
+                row.classList.add('selected');
+            }
+            row.style.paddingLeft = `${node.depth * 12 + 4}px`;
+
+            const hasChildren = node.children.size > 0;
+            const isExpanded = expandedFolders.has(node.fullPath);
+            const expander = document.createElement('span');
+            expander.className = 'gs-tree-expander';
+            expander.innerText = hasChildren ? (isExpanded ? '[-]' : '[+]') : '  ';
+            if (hasChildren) {
+                expander.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (expandedFolders.has(node.fullPath)) {
+                        expandedFolders.delete(node.fullPath);
+                    } else {
+                        expandedFolders.add(node.fullPath);
+                    }
+                    renderFolderTree();
+                });
+            }
+            row.appendChild(expander);
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'gs-tree-checkbox';
+            cb.title = `Toggle upload for all textures in ${node.name}`;
+
+            const total = node.textures.length;
+            const excludedCount = node.textures.filter(t => excludedTexturesSet.has(t.path)).length;
+            if (excludedCount === 0 && total > 0) {
+                cb.checked = true;
+                cb.indeterminate = false;
+            } else if (excludedCount === total && total > 0) {
+                cb.checked = false;
+                cb.indeterminate = false;
+            } else {
+                cb.checked = false;
+                cb.indeterminate = true;
+            }
+
+            cb.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const willInclude = cb.checked;
+                node.textures.forEach(t => {
+                    if (willInclude) {
+                        excludedTexturesSet.delete(t.path);
+                    } else {
+                        excludedTexturesSet.add(t.path);
+                    }
+                });
+                renderFolderTree();
+                renderFilteredInspectViews();
+                updateTextureSelectionCounters();
+            });
+            row.appendChild(cb);
+
+            const icon = document.createElement('span');
+            icon.className = 'gs-tree-icon';
+            icon.innerText = node.depth === 0 ? '[ROOT]' : '[DIR]';
+            row.appendChild(icon);
+
+            const label = document.createElement('span');
+            label.className = 'gs-tree-label';
+            label.innerText = node.depth === 0 ? 'All Textures' : node.name;
+            label.title = `${node.fullPath || 'materials'} (${node.textures.length} textures)`;
+            row.appendChild(label);
+
+            const countBadge = document.createElement('span');
+            countBadge.className = 'gs-tree-badge';
+            countBadge.innerText = node.textures.length.toLocaleString();
+            row.appendChild(countBadge);
+
+            if (node.riskyCount > 0) {
+                const riskyBadge = document.createElement('span');
+                riskyBadge.className = 'gs-tree-badge risky';
+                riskyBadge.innerText = `! ${node.riskyCount}`;
+                riskyBadge.title = `${node.riskyCount} potentially risky textures`;
+                row.appendChild(riskyBadge);
+            }
+
+            row.addEventListener('click', () => {
+                activeFolderFilter = node.fullPath;
+                renderFolderTree();
+                renderBreadcrumbs();
+                renderFilteredInspectViews();
+            });
+
+            texFolderTree.appendChild(row);
+
+            if (hasChildren && isExpanded) {
+                const sortedChildren = Array.from(node.children.values()).sort((a, b) => a.name.localeCompare(b.name));
+                sortedChildren.forEach(child => renderNode(child));
+            }
+        }
+
+        renderNode(cachedFolderTree);
+    }
+
+    function renderBreadcrumbs() {
+        if (!crumbPath) return;
+        crumbPath.innerHTML = '';
+
+        const rootCrumb = document.createElement('span');
+        rootCrumb.className = 'crumb-segment';
+        rootCrumb.setAttribute('data-folder', '');
+        rootCrumb.innerText = 'materials';
+        rootCrumb.addEventListener('click', () => {
+            activeFolderFilter = '';
+            renderFolderTree();
+            renderBreadcrumbs();
+            renderFilteredInspectViews();
+        });
+        crumbPath.appendChild(rootCrumb);
+
+        if (activeFolderFilter) {
+            const segments = activeFolderFilter.split('/');
+            let accumulated = '';
+            segments.forEach((seg) => {
+                accumulated = accumulated ? `${accumulated}/${seg}` : seg;
+                const pathTarget = accumulated;
+
+                const sep = document.createElement('span');
+                sep.className = 'crumb-separator';
+                sep.innerText = ' / ';
+                crumbPath.appendChild(sep);
+
+                const crumb = document.createElement('span');
+                crumb.className = 'crumb-segment';
+                crumb.setAttribute('data-folder', pathTarget);
+                crumb.innerText = seg;
+                crumb.addEventListener('click', () => {
+                    activeFolderFilter = pathTarget;
+                    renderFolderTree();
+                    renderBreadcrumbs();
+                    renderFilteredInspectViews();
+                });
+                crumbPath.appendChild(crumb);
+            });
+        }
+
+        if (crumbFolderCount && currentInspection && currentInspection.textures) {
+            let count = currentInspection.textures.length;
+            if (activeFolderFilter) {
+                count = currentInspection.textures.filter(t => {
+                    const p = (t.path || '').replace(/\\/g, '/');
+                    return p.startsWith(activeFolderFilter + '/') || p === activeFolderFilter;
+                }).length;
+            }
+            crumbFolderCount.innerText = `${count.toLocaleString()} items`;
+        }
+    }
+
+    if (btnTreeCollapseAll) {
+        btnTreeCollapseAll.addEventListener('click', () => {
+            expandedFolders.clear();
+            expandedFolders.add('');
+            renderFolderTree();
+        });
+    }
+
+    function updateRiskCardDisplay(t) {
+        if (!t || !t.risk) return;
+        if (texPreviewRiskBadge) {
+            if (t.risk.level === 'HIGH') {
+                texPreviewRiskBadge.className = 'badge-risk-high';
+                texPreviewRiskBadge.innerText = (t.risk.tags && t.risk.tags.includes('Exposed Skin/Nudity'))
+                    ? 'HIGH RISK (EXPOSED SKIN / NUDITY)'
+                    : 'HIGH RISK (BAN HAZARD)';
+            } else if (t.risk.level === 'MEDIUM') {
+                texPreviewRiskBadge.className = 'badge-risk-medium';
+                texPreviewRiskBadge.innerText = 'MEDIUM RISK (WARNING)';
+            } else {
+                texPreviewRiskBadge.className = 'badge-risk-clean';
+                texPreviewRiskBadge.innerText = 'CLEAN (LOW RISK)';
+            }
+        }
+        if (texPreviewRiskReason) {
+            texPreviewRiskReason.innerText = t.risk.reason;
+        }
     }
 
     function updatePreviewPaneIncludeButton(t) {
@@ -684,32 +1030,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Update risk card
         if (!t.risk) t.risk = assessTextureRisk(t.path);
-        if (texPreviewRiskBadge) {
-            if (t.risk.level === 'HIGH') {
-                texPreviewRiskBadge.className = 'badge-risk-high';
-                texPreviewRiskBadge.innerText = 'HIGH RISK (BAN HAZARD)';
-            } else if (t.risk.level === 'MEDIUM') {
-                texPreviewRiskBadge.className = 'badge-risk-medium';
-                texPreviewRiskBadge.innerText = 'MEDIUM RISK (WARNING)';
-            } else {
-                texPreviewRiskBadge.className = 'badge-risk-clean';
-                texPreviewRiskBadge.innerText = 'CLEAN (LOW RISK)';
-            }
-        }
-        if (texPreviewRiskReason) {
-            texPreviewRiskReason.innerText = t.risk.reason;
-        }
-
+        updateRiskCardDisplay(t);
         updatePreviewPaneIncludeButton(t);
 
         // Check cache
         if (texturePreviewCache.has(t.path)) {
             const cached = texturePreviewCache.get(t.path);
-            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
-            if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
+            if (texPreviewLoading) {
+                texPreviewLoading.classList.add('hidden');
+                texPreviewLoading.style.display = 'none';
+            }
+            if (texPreviewPlaceholder) {
+                texPreviewPlaceholder.classList.add('hidden');
+                texPreviewPlaceholder.style.display = 'none';
+            }
             if (texPreviewImg) {
                 texPreviewImg.src = cached.dataUrl || `file://${cached.path.replace(/\\/g, '/')}`;
                 texPreviewImg.classList.remove('hidden');
+                texPreviewImg.style.display = 'block';
             }
             if (texPreviewResolution) texPreviewResolution.innerText = `Res: ${cached.width} x ${cached.height}`;
             if (texPreviewFormat) texPreviewFormat.innerText = `Fmt: ${cached.format}`;
@@ -719,18 +1057,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Decode via engine
         const gameDir = gameDirInput.value.trim();
         if (!gameDir) {
-            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
-            if (texPreviewImg) texPreviewImg.classList.add('hidden');
+            if (texPreviewLoading) {
+                texPreviewLoading.classList.add('hidden');
+                texPreviewLoading.style.display = 'none';
+            }
+            if (texPreviewImg) {
+                texPreviewImg.classList.add('hidden');
+                texPreviewImg.style.display = 'none';
+            }
             if (texPreviewPlaceholder) {
                 texPreviewPlaceholder.classList.remove('hidden');
+                texPreviewPlaceholder.style.display = 'flex';
                 texPreviewPlaceholder.innerHTML = '<div style="font-size:11px; color:var(--gs-text-dim);">No game directory set</div>';
             }
             return;
         }
 
-        if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
-        if (texPreviewImg) texPreviewImg.classList.add('hidden');
-        if (texPreviewLoading) texPreviewLoading.classList.remove('hidden');
+        if (texPreviewPlaceholder) {
+            texPreviewPlaceholder.classList.add('hidden');
+            texPreviewPlaceholder.style.display = 'none';
+        }
+        if (texPreviewImg) {
+            texPreviewImg.classList.add('hidden');
+            texPreviewImg.style.display = 'none';
+        }
+        if (texPreviewLoading) {
+            texPreviewLoading.classList.remove('hidden');
+            texPreviewLoading.style.display = 'flex';
+        }
         if (texPreviewResolution) texPreviewResolution.innerText = 'Res: loading...';
         if (texPreviewFormat) texPreviewFormat.innerText = 'Fmt: loading...';
 
@@ -739,25 +1093,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const res = await window.api.previewTexture(gameDir, t.path, mapContext);
             if (requestId !== currentPreviewRequestId) {
-                // Superseded by another selection
                 return;
             }
 
-            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
+            if (texPreviewLoading) {
+                texPreviewLoading.classList.add('hidden');
+                texPreviewLoading.style.display = 'none';
+            }
 
             if (res.success && res.data) {
                 texturePreviewCache.set(t.path, res.data);
-                if (texPreviewPlaceholder) texPreviewPlaceholder.classList.add('hidden');
+                if (texPreviewPlaceholder) {
+                    texPreviewPlaceholder.classList.add('hidden');
+                    texPreviewPlaceholder.style.display = 'none';
+                }
                 if (texPreviewImg) {
                     texPreviewImg.src = res.data.dataUrl || `file://${res.data.path.replace(/\\/g, '/')}`;
                     texPreviewImg.classList.remove('hidden');
+                    texPreviewImg.style.display = 'block';
+
+                    // Client-side visual skin scanner callback
+                    texPreviewImg.onload = () => {
+                        try {
+                            const skinPct = scanImageSkinCoverage(texPreviewImg);
+                            if (skinPct >= 15.0) {
+                                t.risk = assessTextureRisk(t.path, skinPct);
+                                updateRiskCardDisplay(t);
+                            }
+                        } catch {}
+                    };
                 }
                 if (texPreviewResolution) texPreviewResolution.innerText = `Res: ${res.data.width} x ${res.data.height}`;
                 if (texPreviewFormat) texPreviewFormat.innerText = `Fmt: ${res.data.format}`;
+
+                if (res.data.skinPercentage !== undefined && res.data.skinPercentage > 0) {
+                    t.risk = assessTextureRisk(t.path, res.data.skinPercentage);
+                    updateRiskCardDisplay(t);
+                }
             } else {
-                if (texPreviewImg) texPreviewImg.classList.add('hidden');
+                if (texPreviewImg) {
+                    texPreviewImg.classList.add('hidden');
+                    texPreviewImg.style.display = 'none';
+                }
                 if (texPreviewPlaceholder) {
                     texPreviewPlaceholder.classList.remove('hidden');
+                    texPreviewPlaceholder.style.display = 'flex';
                     texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-text-dim); text-align:center;">Preview unavailable<br>(${res.error || 'VTF not in VPK'})</div>`;
                 }
                 if (texPreviewResolution) texPreviewResolution.innerText = 'Res: --';
@@ -765,15 +1145,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } catch (err) {
             if (requestId !== currentPreviewRequestId) return;
-            if (texPreviewLoading) texPreviewLoading.classList.add('hidden');
-            if (texPreviewImg) texPreviewImg.classList.add('hidden');
+            if (texPreviewLoading) {
+                texPreviewLoading.classList.add('hidden');
+                texPreviewLoading.style.display = 'none';
+            }
+            if (texPreviewImg) {
+                texPreviewImg.classList.add('hidden');
+                texPreviewImg.style.display = 'none';
+            }
             if (texPreviewPlaceholder) {
                 texPreviewPlaceholder.classList.remove('hidden');
+                texPreviewPlaceholder.style.display = 'flex';
                 texPreviewPlaceholder.innerHTML = `<div style="font-size:11px; color:var(--gs-red);">Error: ${err.message}</div>`;
             }
         } finally {
             if (requestId === currentPreviewRequestId && texPreviewLoading) {
                 texPreviewLoading.classList.add('hidden');
+                texPreviewLoading.style.display = 'none';
             }
         }
     }
@@ -878,6 +1266,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (activeTexPillFilter === 'risky' && !t.risk.isRisky) return false;
             if (activeTexPillFilter === 'excluded' && !excludedTexturesSet.has(t.path)) return false;
 
+            if (activeFolderFilter) {
+                const normPath = (t.path || '').replace(/\\/g, '/');
+                if (!normPath.startsWith(activeFolderFilter + '/') && normPath !== activeFolderFilter) {
+                    return false;
+                }
+            }
+
             if (!filter) return true;
             return (t.path && t.path.toLowerCase().includes(filter)) ||
                    (t.type && t.type.toLowerCase().includes(filter)) ||
@@ -924,6 +1319,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         tr.classList.add('row-excluded');
                     }
                     updateTextureSelectionCounters();
+                    renderFolderTree();
+                    renderBreadcrumbs();
                     if (selectedTextureForPreview && selectedTextureForPreview.path === t.path) {
                         updatePreviewPaneIncludeButton(t);
                     }
@@ -1011,6 +1408,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Texture Toolbar & Selector Listeners
     btnTexSelectAll?.addEventListener('click', () => {
         excludedTexturesSet.clear();
+        renderFolderTree();
+        renderBreadcrumbs();
         renderFilteredInspectViews();
         logToConsole('Texture Selector: Selected all textures for cloud upload.', 'info');
     });
@@ -1018,6 +1417,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnTexDeselectAll?.addEventListener('click', () => {
         if (!currentInspection || !currentInspection.textures) return;
         currentInspection.textures.forEach(t => excludedTexturesSet.add(t.path));
+        renderFolderTree();
+        renderBreadcrumbs();
         renderFilteredInspectViews();
         logToConsole(`Texture Selector: Deselected all ${currentInspection.textures.length} textures.`, 'warning');
     });
@@ -1032,6 +1433,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 count++;
             }
         });
+        renderFolderTree();
+        renderBreadcrumbs();
         renderFilteredInspectViews();
         logToConsole(`Cloud Protection: Deselected ${count} risky textures (Nudity/Gore/Alcohol/Decals) to protect account.`, 'success');
         inspectFooterInfo.innerHTML = `<span style="color:#b4dfb4;">Deselected ${count} risky textures. Safe mode active!</span>`;
@@ -1046,6 +1449,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 excludedTexturesSet.add(t.path);
             }
         });
+        renderFolderTree();
+        renderBreadcrumbs();
         renderFilteredInspectViews();
         logToConsole('Texture Selector: Inverted texture selection.', 'info');
     });
@@ -1058,6 +1463,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             excludedTexturesSet.add(p);
         }
+        renderFolderTree();
+        renderBreadcrumbs();
         renderFilteredInspectViews();
         updatePreviewPaneIncludeButton(selectedTextureForPreview);
     });
@@ -1069,6 +1476,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const visible = currentInspection.textures.filter(t => {
             if (activeTexPillFilter === 'risky' && !t.risk.isRisky) return false;
             if (activeTexPillFilter === 'excluded' && !excludedTexturesSet.has(t.path)) return false;
+            if (activeFolderFilter) {
+                const normPath = (t.path || '').replace(/\\/g, '/');
+                if (!normPath.startsWith(activeFolderFilter + '/') && normPath !== activeFolderFilter) {
+                    return false;
+                }
+            }
             if (!filter) return true;
             return (t.path && t.path.toLowerCase().includes(filter)) ||
                    (t.type && t.type.toLowerCase().includes(filter));
@@ -1081,6 +1494,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 excludedTexturesSet.add(t.path);
             }
         });
+        renderFolderTree();
+        renderBreadcrumbs();
         renderFilteredInspectViews();
     });
 
@@ -1128,11 +1543,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     if (btnModerationResume) {
-        btnModerationResume.addEventListener('click', () => {
+        btnModerationResume.addEventListener('click', async () => {
             closeModerationModal();
-            if (!isConverting) {
-                btnConvertAction.click();
+            if (isConverting) {
+                logToConsole('Sending in-process RESUME signal to engine process...', 'cmd');
+                const res = await window.api.resumeConversion();
+                if (res.success) {
+                    logToConsole('Engine conversion resumed! Continuing upload with remaining safe assets...', 'success');
+                    isModeratedPaused = false;
+                    return;
+                }
             }
+            logToConsole('Resuming conversion with safe cache and excluded flagged items...', 'cmd');
+            btnConvertAction.click();
         });
     }
 
@@ -1310,6 +1733,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'error': {
                 conversionHasErrors = true;
                 logToConsole(evt.message, 'error');
+                if (evt.data && evt.data.detail) {
+                    logToConsole(`Detail: ${evt.data.detail}`, 'error');
+                }
                 break;
             }
 
@@ -1319,6 +1745,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 logToConsole(' [!] ROBLOX ACCOUNT MODERATED - UPLOADS PAUSED', 'error');
                 if (evt.data && evt.data.asset) {
                     logToConsole(` Flagged Asset: ${evt.data.asset}`, 'warning');
+                    excludedTexturesSet.add(evt.data.asset);
+                    logToConsole(` Auto-excluded '${evt.data.asset}' to protect account on resume.`, 'info');
                 }
                 logToConsole(' Uploads stopped immediately to prevent asset loss.', 'warning');
                 logToConsole(' Acknowledge warning at https://www.roblox.com, then click RESUME', 'warning');

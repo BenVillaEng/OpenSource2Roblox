@@ -52,16 +52,32 @@ namespace Source2Roblox.Util
         public static string ModerationReason = "";
         public static string FlaggedAssetPath = "";
         private static CancellationTokenSource UploadCts = new CancellationTokenSource();
+        public static readonly ManualResetEventSlim ResumeSignal = new ManualResetEventSlim(false);
 
         public static bool IsModerationErrorMessage(string message)
         {
             if (string.IsNullOrWhiteSpace(message))
                 return false;
 
-            return message.IndexOf("User is moderated", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   message.IndexOf("account has been moderated", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   message.IndexOf("User is temporarily banned", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   message.IndexOf("Account is suspended", StringComparison.OrdinalIgnoreCase) >= 0;
+            string m = message.ToLowerInvariant();
+            return m.Contains("moderated") ||
+                   m.Contains("moderation") ||
+                   m.Contains("declined") ||
+                   m.Contains("rejected") ||
+                   m.Contains("banned") ||
+                   m.Contains("suspended") ||
+                   m.Contains("community standards") ||
+                   m.Contains("terms of use") ||
+                   m.Contains("terms of service") ||
+                   m.Contains("inappropriate") ||
+                   m.Contains("review failed") ||
+                   m.Contains("review_failed") ||
+                   m.Contains("assetrejected") ||
+                   m.Contains("\"code\":17") ||
+                   m.Contains("\"code\": 17") ||
+                   m.Contains("code 17") ||
+                   m.Contains("user is moderated") ||
+                   m.Contains("account has been moderated");
         }
 
         public static void ResetModerationState()
@@ -75,6 +91,27 @@ namespace Source2Roblox.Util
             }
             catch {}
             UploadCts = new CancellationTokenSource();
+            ResumeSignal.Reset();
+        }
+
+        public static void SignalResume()
+        {
+            IsModerated = false;
+            ModerationReason = "";
+            FlaggedAssetPath = "";
+            try
+            {
+                UploadCts?.Dispose();
+            }
+            catch {}
+            UploadCts = new CancellationTokenSource();
+            ResumeSignal.Set();
+        }
+
+        public static bool WaitForResume(TimeSpan timeout)
+        {
+            ResumeSignal.Reset();
+            return ResumeSignal.Wait(timeout);
         }
 
         private readonly string rootDir;
@@ -223,9 +260,10 @@ namespace Source2Roblox.Util
                 {
                     IsModerated = true;
                     ModerationReason = mex.Details;
-                    FlaggedAssetPath = mex.AssetPath;
+                    FlaggedAssetPath = string.IsNullOrWhiteSpace(mex.AssetPath) ? localPath : mex.AssetPath;
+                    try { AssetUploadCache.SaveCache(); } catch {}
                     UploadCts?.Cancel();
-                    Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {mex.Details}");
+                    Program.LogError($"[MODERATION HALT] Flagged asset: {FlaggedAssetPath}. Moderation response: {mex.Details}");
                     return;
                 }
                 catch (OperationCanceledException)
@@ -239,6 +277,7 @@ namespace Source2Roblox.Util
                         IsModerated = true;
                         ModerationReason = e.Message;
                         FlaggedAssetPath = localPath;
+                        try { AssetUploadCache.SaveCache(); } catch {}
                         UploadCts?.Cancel();
                         Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {e.Message}");
                         return;
@@ -307,9 +346,10 @@ namespace Source2Roblox.Util
                 {
                     IsModerated = true;
                     ModerationReason = mex.Details;
-                    FlaggedAssetPath = mex.AssetPath;
+                    FlaggedAssetPath = string.IsNullOrWhiteSpace(mex.AssetPath) ? localPath : mex.AssetPath;
+                    try { AssetUploadCache.SaveCache(); } catch {}
                     UploadCts?.Cancel();
-                    Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {mex.Details}");
+                    Program.LogError($"[MODERATION HALT] Flagged asset: {FlaggedAssetPath}. Moderation response: {mex.Details}");
                     return;
                 }
                 catch (OperationCanceledException)
@@ -323,6 +363,7 @@ namespace Source2Roblox.Util
                         IsModerated = true;
                         ModerationReason = e.Message;
                         FlaggedAssetPath = localPath;
+                        try { AssetUploadCache.SaveCache(); } catch {}
                         UploadCts?.Cancel();
                         Program.LogError($"[MODERATION HALT] Flagged asset: {localPath}. Moderation response: {e.Message}");
                         return;
@@ -502,7 +543,7 @@ namespace Source2Roblox.Util
                         throw new Exception("Roblox did not return an operation path.");
 
                     Program.Emit("raw", $"Queued {Path.GetFileName(filePath)} with Roblox.");
-                    return await PollOperationAsync(operationPath).ConfigureAwait(false);
+                    return await PollOperationAsync(operationPath, filePath).ConfigureAwait(false);
                 }
             }
             finally
@@ -532,7 +573,7 @@ namespace Source2Roblox.Util
         /// Polls a Roblox operation for completion. Retries transient HTTP errors during polling
         /// instead of immediately aborting (the asset was already submitted and may complete).
         /// </summary>
-        private static async Task<string> PollOperationAsync(string operationPath)
+        private static async Task<string> PollOperationAsync(string operationPath, string filePath = "")
         {
             string operationId = operationPath.Contains("/")
                 ? operationPath.Substring(operationPath.LastIndexOf("/", StringComparison.Ordinal) + 1)
@@ -573,8 +614,10 @@ namespace Source2Roblox.Util
                         {
                             IsModerated = true;
                             ModerationReason = body;
+                            FlaggedAssetPath = filePath;
+                            try { AssetUploadCache.SaveCache(); } catch {}
                             UploadCts?.Cancel();
-                            throw new RobloxModerationException(body);
+                            throw new RobloxModerationException(body, filePath);
                         }
 
                         if (IsTransientStatusCode(response.StatusCode))
@@ -613,8 +656,10 @@ namespace Source2Roblox.Util
                         {
                             IsModerated = true;
                             ModerationReason = errorMsg;
+                            FlaggedAssetPath = filePath;
+                            try { AssetUploadCache.SaveCache(); } catch {}
                             UploadCts?.Cancel();
-                            throw new RobloxModerationException(errorMsg);
+                            throw new RobloxModerationException(errorMsg, filePath);
                         }
                         throw new Exception(errorMsg);
                     }

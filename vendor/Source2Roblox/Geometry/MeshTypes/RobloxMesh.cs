@@ -616,7 +616,7 @@ namespace Source2Roblox.Geometry
                     for (int j = 0; j < 3; j++)
                     {
                         var index = face[j];
-                        var vert = Verts[index];
+                        var vert = (index >= 0 && index < Verts.Count) ? Verts[index] : new RobloxVertex();
 
                         writer.Write('[');
                         writer.Write(vert.Position * 2f);
@@ -752,7 +752,7 @@ namespace Source2Roblox.Geometry
                     var face = faces[i];
                     
                     var verts = face
-                        .Select(index => Verts[index])
+                        .Select(index => (index >= 0 && index < Verts.Count) ? Verts[index] : new RobloxVertex())
                         .ToList();
 
                     foreach (var vert in verts)
@@ -839,7 +839,7 @@ namespace Source2Roblox.Geometry
                         var newFace = new RobloxVertex[3];
 
                         var verts = face
-                            .Select(index => Verts[index])
+                            .Select(index => (index >= 0 && index < Verts.Count) ? Verts[index] : new RobloxVertex())
                             .ToArray();
 
                         for (int j = 0; j < 3; j++)
@@ -980,7 +980,7 @@ namespace Source2Roblox.Geometry
                 {
                     for (int i = 0; i < Verts.Count; i++)
                     {
-                        var envelope = envelopes[i];
+                        var envelope = (i >= 0 && i < envelopes.Length) ? envelopes[i] : new Envelope();
                         writer.Write(envelope.Bones);
                         writer.Write(envelope.Weights);
                     }

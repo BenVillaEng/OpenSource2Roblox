@@ -218,15 +218,19 @@ namespace Source2Roblox.World.Types
                     }
 
                     var keyStart = line.IndexOf('"');
+                    if (keyStart < 0) continue;
                     var keyEnd = line.IndexOf('"', keyStart + 1);
+                    if (keyEnd <= keyStart) continue;
 
                     var valueStart = line.IndexOf('"', keyEnd + 1);
+                    if (valueStart <= keyEnd) continue;
                     var valueEnd = line.IndexOf('"', valueStart + 1);
+                    if (valueEnd <= valueStart) continue;
 
                     string key = line.Substring(keyStart + 1, keyEnd - keyStart - 1);
                     string value = line.Substring(valueStart + 1, valueEnd - valueStart - 1);
 
-                    entity.AddField(key, value);
+                    entity?.AddField(key, value);
                 }
             }
         }

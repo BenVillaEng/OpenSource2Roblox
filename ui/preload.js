@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('api', {
     // Conversion Engine Control
     startConversion: (jobConfig) => ipcRenderer.invoke('start-conversion', jobConfig),
     cancelConversion: () => ipcRenderer.invoke('cancel-conversion'),
+    resumeConversion: () => ipcRenderer.invoke('resume-conversion'),
     openOutputFolder: (customPath) => ipcRenderer.invoke('open-output-folder', customPath),
     openInStudio: (filePath) => ipcRenderer.invoke('open-in-studio', filePath),
     openUrl: (url) => ipcRenderer.invoke('open-url', url),

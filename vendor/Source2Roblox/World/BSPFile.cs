@@ -374,9 +374,17 @@ namespace Source2Roblox.World
                         reader.ReadToEnd(TexInfo);
                         break;
                     case LumpType.Faces:
+                        // If this map has an HDR faces lump with data, skip LDR faces
+                        if (Lumps[(int)LumpType.FacesHDR] != null &&
+                            Lumps[(int)LumpType.FacesHDR].Length > 0 &&
+                            Lumps[(int)LumpType.FacesHDR].Offset > 0)
+                        {
+                            break;
+                        }
                         lock (Faces)
                         {
-                            reader.ReadToEnd(Faces);
+                            if (Faces.Count == 0)
+                                reader.ReadToEnd(Faces);
                         }
                         break;
                     case LumpType.FacesHDR:

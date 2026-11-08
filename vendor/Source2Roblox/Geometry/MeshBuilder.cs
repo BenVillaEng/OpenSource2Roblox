@@ -59,12 +59,32 @@ namespace Source2Roblox.Geometry
             {
                 if (RobloxAssetResolver.IsModerated)
                 {
+                    try { AssetUploadCache.SaveCache(); } catch {}
                     Program.Emit("moderation_blocked", "Upload paused: Roblox account is moderated.", new
                     {
                         asset = RobloxAssetResolver.FlaggedAssetPath,
                         reason = RobloxAssetResolver.ModerationReason,
                         canResume = true
                     });
+
+                    Program.LogError("\n================================================================================");
+                    Program.LogError(" [CRITICAL] ROBLOX MODERATION DETECTED: Upload paused in-place.");
+                    Program.LogError($" Flagged Asset: {RobloxAssetResolver.FlaggedAssetPath}");
+                    Program.LogError($" Reason: {RobloxAssetResolver.ModerationReason}");
+                    Program.LogError(" All pending uploads are paused to protect your account.");
+                    Program.LogError(" Progress saved to upload_cache.json.");
+                    Program.LogError(" Please review your account status on roblox.com.");
+                    Program.LogError(" When ready, click 'RESUME CONVERSION' in the application to continue.");
+                    Program.LogError("================================================================================\n");
+
+                    bool resumed = RobloxAssetResolver.WaitForResume(TimeSpan.FromMinutes(20));
+                    if (resumed)
+                    {
+                        Program.Emit("raw", "[Engine] Resuming conversion in-place after moderation review.");
+                        RobloxAssetResolver.ResetModerationState();
+                        continue;
+                    }
+
                     throw new RobloxModerationException(RobloxAssetResolver.ModerationReason, RobloxAssetResolver.FlaggedAssetPath);
                 }
 
@@ -77,12 +97,29 @@ namespace Source2Roblox.Geometry
                 }
                 catch (RobloxModerationException mex)
                 {
+                    try { AssetUploadCache.SaveCache(); } catch {}
                     Program.Emit("moderation_blocked", "Upload paused: Roblox account is moderated.", new
                     {
                         asset = mex.AssetPath,
                         reason = mex.Details,
                         canResume = true
                     });
+
+                    Program.LogError("\n================================================================================");
+                    Program.LogError(" [CRITICAL] ROBLOX MODERATION DETECTED: Upload paused in-place.");
+                    Program.LogError($" Flagged Asset: {mex.AssetPath}");
+                    Program.LogError($" Reason: {mex.Details}");
+                    Program.LogError(" When ready, click 'RESUME CONVERSION' in the application to continue.");
+                    Program.LogError("================================================================================\n");
+
+                    bool resumed = RobloxAssetResolver.WaitForResume(TimeSpan.FromMinutes(20));
+                    if (resumed)
+                    {
+                        Program.Emit("raw", "[Engine] Resuming conversion in-place after moderation review.");
+                        RobloxAssetResolver.ResetModerationState();
+                        continue;
+                    }
+
                     throw;
                 }
                 catch (Exception)
@@ -947,35 +984,55 @@ namespace Source2Roblox.Geometry
                         if (dispInfo >= 0)
                         {
                             int dispSize = (int)Math.Sqrt(numEdges);
-
-                            for (int y = 0; y < dispSize - 1; y++)
+                            if (dispSize > 1 && dispSize * dispSize == numEdges)
                             {
-                                for (int x = 0; x < dispSize - 1; x++)
+                                for (int y = 0; y < dispSize - 1; y++)
                                 {
-                                    int aa = vertIndex + (y * dispSize) + x;
-                                    int ab = aa + 1;
+                                    for (int x = 0; x < dispSize - 1; x++)
+                                    {
+                                        int aa = vertIndex + (y * dispSize) + x;
+                                        int ab = aa + 1;
 
-                                    int bb = ab + dispSize;
-                                    int ba = bb - 1;
+                                        int bb = ab + dispSize;
+                                        int ba = bb - 1;
 
-                                    var faceA = new int[3] { bb, ba, aa };
-                                    mesh.Faces.Add(faceA);
+                                        if (aa < meshFile.Verts.Count && ab < meshFile.Verts.Count &&
+                                            bb < meshFile.Verts.Count && ba < meshFile.Verts.Count)
+                                        {
+                                            var faceA = new int[3] { bb, ba, aa };
+                                            mesh.Faces.Add(faceA);
 
-                                    var faceB = new int[3] { ab, bb, aa };
-                                    mesh.Faces.Add(faceB);
+                                            var faceB = new int[3] { ab, bb, aa };
+                                            mesh.Faces.Add(faceB);
+                                        }
+                                    }
+                                }
+                            }
+                            else if (numEdges >= 3)
+                            {
+                                for (int i = 0; i < numEdges - 2; i++)
+                                {
+                                    int i0 = vertIndex;
+                                    int i1 = vertIndex + i + 1;
+                                    int i2 = vertIndex + i + 2;
+                                    if (i0 < meshFile.Verts.Count && i1 < meshFile.Verts.Count && i2 < meshFile.Verts.Count)
+                                    {
+                                        mesh.Faces.Add(new int[3] { i0, i1, i2 });
+                                    }
                                 }
                             }
                         }
-                        else
+                        else if (numEdges >= 3)
                         {
                             for (int i = 0; i < numEdges - 2; i++)
                             {
-                                mesh.Faces.Add(new int[3]
+                                int i0 = vertIndex;
+                                int i1 = vertIndex + i + 1;
+                                int i2 = vertIndex + i + 2;
+                                if (i0 < meshFile.Verts.Count && i1 < meshFile.Verts.Count && i2 < meshFile.Verts.Count)
                                 {
-                                    vertIndex,
-                                    vertIndex + i + 1,
-                                    vertIndex + i + 2,
-                                });
+                                    mesh.Faces.Add(new int[3] { i0, i1, i2 });
+                                }
                             }
                         }
                     }
@@ -1287,7 +1344,12 @@ namespace Source2Roblox.Geometry
                         continue;
 
                     if (!skins.TryGetValue(skin, out var modelSource) || modelSource == null)
-                        continue;
+                    {
+                        if (skin != 0 && skins.TryGetValue(0, out var defaultSkin) && defaultSkin != null)
+                            modelSource = defaultSkin;
+                        else
+                            continue;
+                    }
 
                     var origin = prop.Position;
                     var angles = prop.Rotation;
@@ -1345,7 +1407,12 @@ namespace Source2Roblox.Geometry
                     continue;
 
                 if (!skins.TryGetValue(skin, out var modelSource) || modelSource == null)
-                    continue;
+                {
+                    if (skin != 0 && skins.TryGetValue(0, out var defaultSkin) && defaultSkin != null)
+                        modelSource = defaultSkin;
+                    else
+                        continue;
+                }
 
                 var model = modelSource.Clone() as Model;
                 if (model == null)
