@@ -145,6 +145,7 @@ namespace Source2Roblox.Geometry
         }
 
         private static readonly CFrame BONE_OFFSET = CFrame.Angles(-90f * DEG_TO_RAD, 0, 0);
+        public static int TargetLOD = 0;
 
         public static Region3 ComputeAABB(IEnumerable<Vector3> vertices)
         {
@@ -312,8 +313,12 @@ namespace Source2Roblox.Geometry
 
             for (int bodyPart = 0; bodyPart < model.BodyPartCount; bodyPart++)
             {
-                var meshes = model.GetMeshes(bodyPart, skin);
-                meshBuffers.AddRange(meshes);
+                int targetLod = TargetLOD;
+                var meshes = model.GetMeshes(bodyPart, skin, lodId: targetLod);
+                if ((meshes == null || meshes.Count == 0) && targetLod > 0)
+                    meshes = model.GetMeshes(bodyPart, skin, lodId: 0);
+                if (meshes != null)
+                    meshBuffers.AddRange(meshes);
             }
 
             var bones = new List<Bone>();
@@ -841,7 +846,17 @@ namespace Source2Roblox.Geometry
 
                 if (!string.IsNullOrEmpty(skyName))
                 {
-                    var sky = new Sky();
+                    string cleanSky = skyName.Trim().Replace('\\', '/');
+                    if (cleanSky.StartsWith("materials/")) cleanSky = cleanSky.Substring(10);
+                    if (cleanSky.StartsWith("skybox/")) cleanSky = cleanSky.Substring(7);
+
+                    var sky = new Sky()
+                    {
+                        Name = "SourceSky",
+                        CelestialBodiesShown = true
+                    };
+
+                    int resolvedFaces = 0;
 
                     foreach (var pair in sky.Properties)
                     {
@@ -852,8 +867,22 @@ namespace Source2Roblox.Geometry
                             .Replace("Skybox", "")
                             .ToLowerInvariant();
 
-                        string matName = $"materials/skybox/{skyName}{suffix}.vmt";
-                        ValveMaterial material = geometry.RegisterMaterial(matName, game);
+                        string[] candidates = new string[]
+                        {
+                            $"materials/skybox/{cleanSky}{suffix}.vmt",
+                            $"materials/skybox/{cleanSky}_{suffix}.vmt",
+                            $"materials/skybox/{cleanSky}_hdr{suffix}.vmt",
+                            $"materials/skybox/{cleanSky}_hdr_{suffix}.vmt",
+                            $"materials/{cleanSky}{suffix}.vmt"
+                        };
+
+                        ValveMaterial material = null;
+                        foreach (var cand in candidates)
+                        {
+                            material = geometry.RegisterMaterial(cand, game);
+                            if (material != null)
+                                break;
+                        }
 
                         if (material == null)
                             continue;
@@ -868,9 +897,13 @@ namespace Source2Roblox.Geometry
                         assetResolver.BindTexture(diffuse, uploadPool, prop);
 
                         material.SaveVTF(diffuse, sourceDir, true);
+                        resolvedFaces++;
                     }
 
-                    sky.Parent = lighting;
+                    if (resolvedFaces > 0)
+                    {
+                        sky.Parent = lighting;
+                    }
                 }
             }
 
@@ -993,6 +1026,8 @@ namespace Source2Roblox.Geometry
                             firstVert = face.FirstVert,
                             vertIndex = meshFile.Verts.Count;
 
+                        var lightColor = bsp.GetFaceLightColor(face);
+
                         for (int i = 0; i < numEdges; i++)
                         {
                             var pos = objMesh.GetVertex(firstVert + i);
@@ -1007,7 +1042,8 @@ namespace Source2Roblox.Geometry
                             {
                                 Position = pos,
                                 Normal = norm,
-                                UV = uv
+                                UV = uv,
+                                Color = lightColor
                             };
 
                             meshFile.Verts.Add(vert);
@@ -1336,6 +1372,183 @@ namespace Source2Roblox.Geometry
                         Color = new Color3(0.8f, 0.8f, 0.8f),
                         Parent = ladderFolder
                     };
+                }
+            }
+
+            // Translate Source water brushes into realistic translucent Roblox water volumes
+            var waterEntities = bsp.FindEntitiesOfClass("func_water", "func_water_analogous").ToList();
+            if (waterEntities.Count > 0)
+            {
+                var waterFolder = new Folder()
+                {
+                    Name = "Water",
+                    Parent = workspace
+                };
+
+                foreach (var water in waterEntities)
+                {
+                    string modelStr = water.GetString("model");
+                    Vector3 size = new Vector3(32, 8, 32);
+                    CFrame cf = water.CFrame ?? new CFrame();
+
+                    if (!string.IsNullOrEmpty(modelStr) && modelStr.StartsWith("*") &&
+                        int.TryParse(modelStr.Substring(1), out int modelIdx) &&
+                        modelIdx >= 0 && modelIdx < bsp.BrushModels.Count)
+                    {
+                        var bm = bsp.BrushModels[modelIdx];
+                        Vector3 min = bm.BoundsMin / Program.STUDS_TO_VMF;
+                        Vector3 max = bm.BoundsMax / Program.STUDS_TO_VMF;
+                        size = new Vector3(
+                            Math.Max(Math.Abs(max.X - min.X), 1f),
+                            Math.Max(Math.Abs(max.Z - min.Z), 1f),
+                            Math.Max(Math.Abs(max.Y - min.Y), 1f)
+                        );
+                        Vector3 center = (min + max) * 0.5f;
+                        cf = new CFrame(center.X, center.Z, -center.Y);
+                    }
+
+                    var waterPart = new Part()
+                    {
+                        Name = "WaterVolume",
+                        CFrame = cf,
+                        Size = size,
+                        Anchored = true,
+                        CanCollide = false,
+                        CanTouch = true,
+                        CastShadow = false,
+                        Material = Material.Glass,
+                        Transparency = 0.35f,
+                        Color = new Color3(0.12f, 0.35f, 0.48f),
+                        Reflectance = 0.45f,
+                        TopSurface = SurfaceType.Smooth,
+                        BottomSurface = SurfaceType.Smooth,
+                        Parent = waterFolder
+                    };
+                }
+            }
+
+            // Translate Source ambient sounds into positioned Roblox 3D Sound instances
+            var ambientSounds = bsp.FindEntitiesOfClass("ambient_generic").ToList();
+            if (ambientSounds.Count > 0)
+            {
+                var soundFolder = new Folder()
+                {
+                    Name = "Sounds",
+                    Parent = workspace
+                };
+
+                foreach (var amb in ambientSounds)
+                {
+                    string message = amb.GetString("message") ?? "";
+                    if (string.IsNullOrWhiteSpace(message))
+                        continue;
+
+                    float vol = (amb.GetInt("health") ?? 10) / 10f;
+                    float pitch = (amb.GetInt("pitch") ?? 100) / 100f;
+                    float radius = (amb.GetInt("radius") ?? 1250) / Program.STUDS_TO_VMF;
+
+                    var soundPart = new Part()
+                    {
+                        Name = amb.GetString("targetname") ?? "AmbientSound",
+                        CFrame = amb.CFrame ?? new CFrame(),
+                        Size = new Vector3(1, 1, 1),
+                        Transparency = 1.0f,
+                        CanCollide = false,
+                        CanTouch = false,
+                        CanQuery = false,
+                        CastShadow = false,
+                        Anchored = true,
+                        Parent = soundFolder
+                    };
+
+                    string cleanSound = message.Replace('\\', '/').TrimStart('/');
+                    var soundObj = new Sound()
+                    {
+                        Name = Path.GetFileNameWithoutExtension(cleanSound),
+                        SoundId = $"rbxasset://source/{gameName}/sound/{cleanSound}",
+                        Volume = Math.Clamp(vol, 0.05f, 1.0f),
+                        PlaybackSpeed = Math.Clamp(pitch, 0.5f, 2.0f),
+                        RollOffMaxDistance = Math.Max(radius, 20f),
+                        RollOffMinDistance = 5f,
+                        Looped = true,
+                        Playing = true,
+                        Parent = soundPart
+                    };
+
+                    var msgValue = new StringValue()
+                    {
+                        Name = "SourceAudioPath",
+                        Value = cleanSound,
+                        Parent = soundObj
+                    };
+                }
+            }
+
+            // Translate gameplay triggers into non-collidable tagged scaffold parts
+            var triggerEntities = bsp.FindEntitiesOfClass(
+                "trigger_once",
+                "trigger_multiple",
+                "trigger_hurt",
+                "trigger_teleport",
+                "trigger_push",
+                "trigger_changelevel"
+            ).ToList();
+
+            if (triggerEntities.Count > 0)
+            {
+                var triggerFolder = new Folder()
+                {
+                    Name = "Triggers",
+                    Parent = workspace
+                };
+
+                foreach (var trig in triggerEntities)
+                {
+                    string modelStr = trig.GetString("model");
+                    Vector3 size = new Vector3(8, 8, 8);
+                    CFrame cf = trig.CFrame ?? new CFrame();
+
+                    if (!string.IsNullOrEmpty(modelStr) && modelStr.StartsWith("*") &&
+                        int.TryParse(modelStr.Substring(1), out int modelIdx) &&
+                        modelIdx >= 0 && modelIdx < bsp.BrushModels.Count)
+                    {
+                        var bm = bsp.BrushModels[modelIdx];
+                        Vector3 min = bm.BoundsMin / Program.STUDS_TO_VMF;
+                        Vector3 max = bm.BoundsMax / Program.STUDS_TO_VMF;
+                        size = new Vector3(
+                            Math.Max(Math.Abs(max.X - min.X), 1f),
+                            Math.Max(Math.Abs(max.Z - min.Z), 1f),
+                            Math.Max(Math.Abs(max.Y - min.Y), 1f)
+                        );
+                        Vector3 center = (min + max) * 0.5f;
+                        cf = new CFrame(center.X, center.Z, -center.Y);
+                    }
+
+                    var trigPart = new Part()
+                    {
+                        Name = trig.ClassName,
+                        CFrame = cf,
+                        Size = size,
+                        Anchored = true,
+                        CanCollide = false,
+                        CanTouch = true,
+                        CastShadow = false,
+                        Transparency = 1.0f,
+                        Parent = triggerFolder
+                    };
+
+                    trigPart.Tags.Add("SourceTrigger");
+
+                    string target = trig.GetString("target") ?? trig.GetString("landmark") ?? "";
+                    if (!string.IsNullOrEmpty(target))
+                    {
+                        var targetVal = new StringValue()
+                        {
+                            Name = "Target",
+                            Value = target,
+                            Parent = trigPart
+                        };
+                    }
                 }
             }
 

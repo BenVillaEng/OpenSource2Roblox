@@ -597,6 +597,48 @@ ipcMain.handle('clear-upload-cache', async () => {
     }
 });
 
+// Conversion History
+const HISTORY_PATH = path.join(app.getPath('userData'), 'conversion_history.json');
+
+ipcMain.handle('get-conversion-history', async () => {
+    try {
+        if (fs.existsSync(HISTORY_PATH)) {
+            const raw = fs.readFileSync(HISTORY_PATH, 'utf8');
+            return JSON.parse(raw);
+        }
+    } catch (e) {}
+    return [];
+});
+
+ipcMain.handle('save-conversion-history', async (event, entry) => {
+    try {
+        let history = [];
+        if (fs.existsSync(HISTORY_PATH)) {
+            try {
+                history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
+            } catch {}
+        }
+        if (!Array.isArray(history)) history = [];
+        history.unshift(entry);
+        if (history.length > 100) history = history.slice(0, 100);
+        fs.writeFileSync(HISTORY_PATH, JSON.stringify(history, null, 2), 'utf8');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+ipcMain.handle('clear-conversion-history', async () => {
+    try {
+        if (fs.existsSync(HISTORY_PATH)) {
+            fs.unlinkSync(HISTORY_PATH);
+        }
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
 // Launch Conversion Process
 ipcMain.handle('start-conversion', async (event, config) => {
     if (activeEngineProcess) {
@@ -642,6 +684,9 @@ ipcMain.handle('start-conversion', async (event, config) => {
     }
     if (config.customTexturesDir) {
         args.push('-customTexturesDir', config.customTexturesDir);
+    }
+    if (config.lod !== undefined && config.lod !== null && String(config.lod).trim() !== '') {
+        args.push('-lod', String(config.lod).trim());
     }
     if (config.excludedTextures && Array.isArray(config.excludedTextures) && config.excludedTextures.length > 0) {
         const excludeFile = path.join(app.getPath('userData'), 's2r_excluded_textures.txt');

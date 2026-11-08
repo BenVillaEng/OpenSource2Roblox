@@ -1,4 +1,4 @@
-﻿using RobloxFiles.DataTypes;
+using RobloxFiles.DataTypes;
 using RobloxFiles.Enums;
 using Source2Roblox.World.Types;
 

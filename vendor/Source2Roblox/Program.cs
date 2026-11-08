@@ -246,6 +246,16 @@ namespace Source2Roblox
             RobloxCreatorId = GetArg("-robloxCreatorId") ?? "";
             CustomTexturesDir = GetArg("-customTexturesDir") ?? "";
 
+            string lodArg = GetArg("-lod");
+            if (!string.IsNullOrEmpty(lodArg) && int.TryParse(lodArg, out int parsedLod))
+            {
+                Geometry.MeshBuilder.TargetLOD = Math.Clamp(parsedLod, 0, 8);
+            }
+            else
+            {
+                Geometry.MeshBuilder.TargetLOD = 0;
+            }
+
             string clearCache = GetArg("-clearCache");
             if (clearCache != null)
             {

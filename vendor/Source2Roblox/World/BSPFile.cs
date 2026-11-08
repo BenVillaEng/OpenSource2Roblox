@@ -8,6 +8,7 @@ using Source2Roblox.World.Types;
 using Brush = Source2Roblox.World.Types.Brush;
 
 using RobloxFiles.DataTypes;
+using System.Drawing;
 using System.Linq;
 using System.Diagnostics;
 using System.IO.Compression;
@@ -59,6 +60,46 @@ namespace Source2Roblox.World
 
         public readonly List<int> TexDataStringTable = new List<int>();
         public readonly Dictionary<int, string> TexDataStringData = new Dictionary<int, string>();
+
+        public byte[] LightingData = new byte[0];
+        public byte[] LightingHDRData = new byte[0];
+
+        public Color GetFaceLightColor(Face face)
+        {
+            if (face == null || face.LightOffset < 0)
+                return Color.White;
+
+            byte[] data = (LightingHDRData != null && LightingHDRData.Length > 0)
+                ? LightingHDRData
+                : LightingData;
+
+            if (data == null || data.Length == 0)
+                return Color.White;
+
+            int offset = face.LightOffset;
+            if (offset < 0 || offset + 4 > data.Length)
+                return Color.White;
+
+            byte r = data[offset + 0];
+            byte g = data[offset + 1];
+            byte b = data[offset + 2];
+            sbyte exp = (sbyte)data[offset + 3];
+
+            float multiplier = (float)Math.Pow(2.0, exp);
+            int finalR = Math.Clamp((int)(r * multiplier), 0, 255);
+            int finalG = Math.Clamp((int)(g * multiplier), 0, 255);
+            int finalB = Math.Clamp((int)(b * multiplier), 0, 255);
+
+            // Subtle ambient floor so indoor shadows retain readable detail
+            if (finalR < 25 && finalG < 25 && finalB < 25)
+            {
+                finalR = Math.Max(finalR, 25);
+                finalG = Math.Max(finalG, 25);
+                finalB = Math.Max(finalB, 25);
+            }
+
+            return Color.FromArgb(255, finalR, finalG, finalB);
+        }
 
         private const float ROUND_VERTEX_EPSILON = 0.01f;
         private const float MIN_EDGE_LENGTH_EPSILON = 0.1f;
@@ -194,6 +235,16 @@ namespace Source2Roblox.World
                             if (Faces.Count == 0)
                                 reader.ReadToEnd(Faces);
                         }
+                        break;
+                    }
+                    case LumpType.Lighting:
+                    {
+                        LightingData = reader.ReadBytes((int)buffer.Length);
+                        break;
+                    }
+                    case LumpType.LightingHDR:
+                    {
+                        LightingHDRData = reader.ReadBytes((int)buffer.Length);
                         break;
                     }
                     case LumpType.Edges:
@@ -386,6 +437,12 @@ namespace Source2Roblox.World
                             if (Faces.Count == 0)
                                 reader.ReadToEnd(Faces);
                         }
+                        break;
+                    case LumpType.Lighting:
+                        LightingData = reader.ReadBytes((int)buffer.Length);
+                        break;
+                    case LumpType.LightingHDR:
+                        LightingHDRData = reader.ReadBytes((int)buffer.Length);
                         break;
                     case LumpType.Edges:
                         reader.ReadToEnd(Edges, reader.ReadUInt16);

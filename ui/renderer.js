@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chkUploadTextures = document.getElementById('chk-upload-textures');
     const chkUploadMeshes = document.getElementById('chk-upload-meshes');
     const chkOpenStudio = document.getElementById('chk-open-studio');
+    const optPropLod = document.getElementById('opt-prop-lod');
 
     // Models & Textures Tab Elements
     const modelPathInput = document.getElementById('model-path-input');
@@ -133,6 +134,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const credsStatusText = document.getElementById('credentials-status-text');
     const cacheStatsLabel = document.getElementById('cache-stats-label');
     const btnClearCache = document.getElementById('btn-clear-cache');
+    const dedupMetricCount = document.getElementById('dedup-metric-count');
+    const dedupMetricRequests = document.getElementById('dedup-metric-requests');
+    const dedupMetricBandwidth = document.getElementById('dedup-metric-bandwidth');
+    const dedupMetricSize = document.getElementById('dedup-metric-size');
+    const btnRefreshCacheStats = document.getElementById('btn-refresh-cache-stats');
+
+    // History Tab Elements
+    const historyTbody = document.getElementById('history-tbody');
+    const btnRefreshHistory = document.getElementById('btn-refresh-history');
+    const btnClearHistory = document.getElementById('btn-clear-history');
 
     // Console Elements
     const consoleOutput = document.getElementById('console-output');
@@ -192,6 +203,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 consoleBadge.style.display = 'none';
                 consoleBadge.innerText = '0';
                 consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            } else if (targetTab === 'tab-history') {
+                loadAndRenderHistory();
+            } else if (targetTab === 'tab-cloud') {
+                updateDeduplicationStats();
             }
         });
     });
@@ -302,14 +317,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnBrowseBsp.addEventListener('click', async () => {
         const file = await window.api.browseFile([
-            { name: 'Source Map & Nav Files (*.bsp, *.nav)', extensions: ['bsp', 'nav'] },
+            { name: 'Source Maps (*.bsp, *.nav, *.vmf)', extensions: ['bsp', 'nav', 'vmf'] },
             { name: 'Source BSP Maps (*.bsp)', extensions: ['bsp'] },
+            { name: 'Valve Map File (*.vmf)', extensions: ['vmf'] },
             { name: 'Source Navigation Mesh (*.nav)', extensions: ['nav'] },
             { name: 'All Files', extensions: ['*'] }
         ]);
         if (file) {
             let targetFile = file;
-            if (file.toLowerCase().endsWith('.nav')) {
+            if (file.toLowerCase().endsWith('.vmf')) {
+                const bspCandidate = file.replace(/\.vmf$/i, '.bsp');
+                logToConsole(`Selected Valve Map File: ${file}. If compiled, ${bspCandidate} will be used.`, 'info');
+            } else if (file.toLowerCase().endsWith('.nav')) {
                 const bspCandidate = file.replace(/\.nav$/i, '.bsp');
                 targetFile = bspCandidate;
                 logToConsole(`Selected navigation mesh (.nav). Paired with map: ${bspCandidate.replace(/.*[\\\/]/, '')}`, 'info');
@@ -1905,6 +1924,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             robloxCreatorType: creatorTypeSelect.value,
             robloxCreatorId: creatorIdInput.value.trim(),
             customTexturesDir: customTexturesInput.value.trim(),
+            lod: optPropLod ? optPropLod.value : '0',
             excludedTextures: Array.from(excludedTexturesSet)
         };
 
@@ -2060,6 +2080,102 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnConvertAction.innerText = 'START CONVERSION';
             btnConvertAction.classList.remove('btn-resume-glow');
         }
+
+        try {
+            const histEntry = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleString(),
+                mapName: selectedMapInput.value.trim() || modelPathInput.value.trim() || vtfPathInput.value.trim() || 'Custom Conversion',
+                gameDir: gameDirInput.value.trim(),
+                status: (data.code === 0 && !conversionHasErrors) ? 'Completed' : (isModeratedPaused || data.code === 2 ? 'Moderated' : 'Failed'),
+                placePath: lastExportedPlacePath || null
+            };
+            window.api.saveConversionHistory(histEntry).then(() => {
+                loadAndRenderHistory();
+            });
+            updateDeduplicationStats();
+        } catch (e) {}
+    });
+
+    // --- Deduplication & Conversion History Logic ---
+    async function updateDeduplicationStats() {
+        try {
+            const stats = await window.api.getCacheStats();
+            if (stats && stats.exists) {
+                const count = stats.count || 0;
+                if (dedupMetricCount) dedupMetricCount.innerText = count.toLocaleString();
+                if (dedupMetricRequests) dedupMetricRequests.innerText = count.toLocaleString();
+                const estMb = ((count * 250) / 1024).toFixed(1);
+                if (dedupMetricBandwidth) dedupMetricBandwidth.innerText = `${estMb} MB`;
+                if (dedupMetricSize) dedupMetricSize.innerText = stats.sizeFormatted || '0 KB';
+                if (cacheStatsLabel) cacheStatsLabel.innerText = `Cached Assets: ${count.toLocaleString()} (${stats.sizeFormatted})`;
+            } else {
+                if (dedupMetricCount) dedupMetricCount.innerText = '0';
+                if (dedupMetricRequests) dedupMetricRequests.innerText = '0';
+                if (dedupMetricBandwidth) dedupMetricBandwidth.innerText = '0 MB';
+                if (dedupMetricSize) dedupMetricSize.innerText = '0 KB';
+                if (cacheStatsLabel) cacheStatsLabel.innerText = 'Cached Assets: 0 (No cache file)';
+            }
+        } catch (e) {}
+    }
+
+    async function loadAndRenderHistory() {
+        if (!historyTbody) return;
+        try {
+            const list = await window.api.getConversionHistory();
+            if (!list || list.length === 0) {
+                historyTbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 30px; color: var(--gs-text-dim);">
+                            No conversion history recorded yet. Convert a map to populate.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            historyTbody.innerHTML = '';
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                let badge = '<span class="badge-tag" style="background:#225522; color:#aaffaa;">COMPLETED</span>';
+                if (item.status === 'Failed') {
+                    badge = '<span class="badge-tag" style="background:#662222; color:#ffaaaa;">FAILED</span>';
+                } else if (item.status === 'Moderated') {
+                    badge = '<span class="badge-tag" style="background:#664422; color:var(--gs-yellow);">MODERATED</span>';
+                }
+
+                tr.innerHTML = `
+                    <td style="font-family: var(--font-mono); font-size: 11px; color: var(--gs-text-dim);">${item.timestamp}</td>
+                    <td><strong style="color: var(--gs-text-highlight);">${item.mapName}</strong></td>
+                    <td style="font-size: 11px; color: var(--gs-text-dim); font-family: var(--font-mono);">${item.gameDir}</td>
+                    <td style="text-align: center;">${badge}</td>
+                    <td style="text-align: center;">
+                        <button class="gs-btn gs-btn-sm" data-action="open-folder" style="padding: 1px 6px; margin-right: 4px;">Folder</button>
+                        <button class="gs-btn gs-btn-sm" data-action="open-studio" style="padding: 1px 6px;" ${item.placePath ? '' : 'disabled'}>Studio</button>
+                    </td>
+                `;
+
+                tr.querySelector('[data-action="open-folder"]')?.addEventListener('click', () => {
+                    window.api.openOutputFolder();
+                });
+
+                tr.querySelector('[data-action="open-studio"]')?.addEventListener('click', () => {
+                    if (item.placePath) window.api.openInStudio(item.placePath);
+                });
+
+                historyTbody.appendChild(tr);
+            });
+        } catch (e) {}
+    }
+
+    btnRefreshCacheStats?.addEventListener('click', updateDeduplicationStats);
+    btnRefreshHistory?.addEventListener('click', loadAndRenderHistory);
+    btnClearHistory?.addEventListener('click', async () => {
+        if (confirm('Clear all recorded conversion history?')) {
+            await window.api.clearConversionHistory();
+            loadAndRenderHistory();
+            logToConsole('Conversion history archive cleared.', 'info');
+        }
     });
 
     // --- Action Buttons ---
@@ -2071,7 +2187,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (lastExportedPlacePath) {
             window.api.openInStudio(lastExportedPlacePath);
         } else {
-            // Find most recent rbxl in default folder
             window.api.openOutputFolder();
         }
     });
@@ -2305,5 +2420,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Initialization ---
     await loadSettings();
     await updateCacheStats();
+    await updateDeduplicationStats();
+    await loadAndRenderHistory();
     await discoverSteamGames();
 });

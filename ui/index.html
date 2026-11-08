@@ -26,6 +26,7 @@
             <div class="gs-tab" data-tab="tab-models">Models</div>
             <div class="gs-tab" data-tab="tab-textures">Textures</div>
             <div class="gs-tab" data-tab="tab-cloud">Roblox Cloud</div>
+            <div class="gs-tab" data-tab="tab-history">History</div>
             <div class="gs-tab" data-tab="tab-console">Console <span class="badge" id="console-badge" style="display:none;">0</span></div>
             <div class="gs-tab" data-tab="tab-manual">Guide & Manual</div>
         </nav>
@@ -100,6 +101,14 @@
                             <input type="checkbox" class="gs-checkbox" id="chk-open-studio">
                             <span>Open in Roblox Studio When Complete</span>
                         </label>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="font-size: 11px; font-weight: bold; color: var(--gs-text-dim);">Prop Mesh LOD:</label>
+                            <select class="gs-select" id="opt-prop-lod" style="width: 175px; padding: 2px 4px; font-size: 11px;">
+                                <option value="0" selected>LOD 0 (Full Quality)</option>
+                                <option value="1">LOD 1 (Medium Detail)</option>
+                                <option value="2">LOD 2 (Low Poly / Perf)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -195,13 +204,74 @@
                 </div>
 
                 <div class="gs-groupbox">
-                    <span class="gs-groupbox-title">Asset Deduplication & Cache</span>
+                    <span class="gs-groupbox-title">Asset Deduplication & Cache Dashboard</span>
                     <p style="margin-bottom: 10px; color: var(--gs-text-dim);">
-                        Identical textures and meshes are hashed (MD5) and cached locally so you never waste API quotas or re-upload the same asset twice.
+                        Identical textures and meshes are hashed (MD5) and cached locally so you never waste API quotas or re-upload the same asset twice across multiple maps.
                     </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px;">
+                        <div class="gs-metric-card" style="padding: 8px;">
+                            <span class="gs-metric-title">Cached Assets</span>
+                            <span class="gs-metric-val" id="dedup-metric-count" style="font-size: 16px;">0</span>
+                            <span class="gs-metric-sub">unique IDs</span>
+                        </div>
+                        <div class="gs-metric-card" style="padding: 8px;">
+                            <span class="gs-metric-title">API Requests Saved</span>
+                            <span class="gs-metric-val" id="dedup-metric-requests" style="font-size: 16px; color: #aaffaa;">0</span>
+                            <span class="gs-metric-sub">quota spared</span>
+                        </div>
+                        <div class="gs-metric-card" style="padding: 8px;">
+                            <span class="gs-metric-title">Bandwidth Saved</span>
+                            <span class="gs-metric-val" id="dedup-metric-bandwidth" style="font-size: 16px; color: var(--gs-yellow);">0 MB</span>
+                            <span class="gs-metric-sub">data conserved</span>
+                        </div>
+                        <div class="gs-metric-card" style="padding: 8px;">
+                            <span class="gs-metric-title">Cache Size</span>
+                            <span class="gs-metric-val" id="dedup-metric-size" style="font-size: 16px;">0 KB</span>
+                            <span class="gs-metric-sub">on disk</span>
+                        </div>
+                    </div>
                     <div style="display: flex; gap: 16px; align-items: center;">
-                        <span id="cache-stats-label" style="font-weight: bold; color: var(--gs-yellow);">Cached Assets: Loading...</span>
-                        <button class="gs-btn" id="btn-clear-cache">Clear Upload Cache</button>
+                        <button class="gs-btn gs-btn-sm" id="btn-refresh-cache-stats">Refresh Stats</button>
+                        <button class="gs-btn gs-btn-sm" id="btn-clear-cache">Clear Upload Cache</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: HISTORY & LOGS -->
+            <section class="gs-tab-panel" id="tab-history">
+                <div class="gs-groupbox" style="display: flex; flex-direction: column; height: 100%; margin-bottom: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <span class="gs-groupbox-title" style="position: static; padding: 0;">Map Conversion Archive</span>
+                            <div style="font-size: 11px; color: var(--gs-text-dim); margin-top: 2px;">
+                                Persistent audit log of all completed and queued map exports.
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="gs-btn gs-btn-sm" id="btn-refresh-history">Refresh</button>
+                            <button class="gs-btn gs-btn-sm" id="btn-clear-history">Clear History</button>
+                        </div>
+                    </div>
+
+                    <div class="gs-listbox" style="flex: 1; overflow-y: auto; background-color: #22291e; border: 1px solid var(--gs-border-dark);">
+                        <table class="gs-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 130px;">TIMESTAMP</th>
+                                    <th style="width: 180px;">MAP NAME</th>
+                                    <th>SOURCE GAME</th>
+                                    <th style="width: 90px; text-align: center;">STATUS</th>
+                                    <th style="width: 160px; text-align: center;">ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 30px; color: var(--gs-text-dim);">
+                                        No conversion history recorded yet. Convert a map to populate.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>

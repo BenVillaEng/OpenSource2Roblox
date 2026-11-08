@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('api', {
     exportExclusionProfile: (data) => ipcRenderer.invoke('export-exclusion-profile', data),
     importExclusionProfile: () => ipcRenderer.invoke('import-exclusion-profile'),
 
+    // Conversion History
+    getConversionHistory: () => ipcRenderer.invoke('get-conversion-history'),
+    saveConversionHistory: (entry) => ipcRenderer.invoke('save-conversion-history', entry),
+    clearConversionHistory: () => ipcRenderer.invoke('clear-conversion-history'),
+
     // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
